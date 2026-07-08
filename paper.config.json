@@ -1,0 +1,27 @@
+{
+  "name": "Lumina Image Editor",
+  "paperFileId": "01KWXXTG2VW3JSCGPANVT5V5YX",
+  "paperUrl": "https://app.paper.design/file/01KWXXTG2VW3JSCGPANVT5V5YX/1-0",
+  "artboards": {
+    "home": {
+      "id": "AD-0",
+      "name": "Home Light v2 — Soft Gray",
+      "route": "/",
+      "source": "src/app/page.tsx"
+    },
+    "editor": {
+      "id": "X6-0",
+      "name": "Editor Light — Edit",
+      "route": "/editor/[projectId]",
+      "source": "src/app/editor/[projectId]/page.tsx"
+    }
+  },
+  "tokens": {
+    "paper": "Synced via Paper MCP create_tokens",
+    "css": "src/app/globals.css"
+  },
+  "workflows": {
+    "codeToDesign": "Use Paper MCP with this file open. Tokens live in Paper; CSS vars in globals.css should stay in sync.",
+    "designToCode": "Select a frame in Paper, then ask Cursor to implement changes using the design-to-code skill."
+  }
+}
