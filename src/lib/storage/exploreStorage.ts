@@ -55,6 +55,45 @@ export async function updateExplorePost(post: ExplorePost): Promise<void> {
   await saveExplorePost(post);
 }
 
+export async function deleteExplorePost(id: string): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORES.explorePosts, "readwrite");
+    tx.objectStore(STORES.explorePosts).delete(id);
+    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
+export async function replaceCatalogExplorePosts(posts: ExplorePost[]): Promise<void> {
+  const db = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORES.explorePosts, "readwrite");
+    const store = tx.objectStore(STORES.explorePosts);
+    const request = store.getAll();
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const existing = (request.result as ExplorePost[]) ?? [];
+      for (const post of existing) {
+        if (post.source === "seed" || post.imageUrl.includes("picsum.photos")) {
+          store.delete(post.id);
+        }
+      }
+      for (const post of posts) {
+        store.put(post);
+      }
+    };
+    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+  });
+}
+
 const LIKES_KEY = "lumina-explore-likes";
 const FOLLOWS_KEY = "lumina-explore-follows";
 

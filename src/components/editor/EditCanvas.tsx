@@ -3,6 +3,7 @@
 import { CanvasViewport } from "@/components/editor/CanvasViewport";
 import { useAdjustedImage } from "@/lib/hooks/useAdjustedImage";
 import { useActiveImage, useEditorStore } from "@/lib/store/editorStore";
+import { DEFAULT_CROP } from "@/lib/types";
 
 export function EditCanvas() {
   const activeImage = useActiveImage();
@@ -29,6 +30,7 @@ export function EditCanvas() {
       imageId={activeImage.id}
       originalDataUrl={activeImage.originalDataUrl}
       rotation={activeImage.rotation}
+      crop={showBefore ? DEFAULT_CROP : activeImage.crop}
       imageUrl={displayUrl}
       alt={activeImage.name}
     >

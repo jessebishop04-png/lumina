@@ -1,4 +1,6 @@
 export type AspectRatioId = "1:1" | "16:9" | "9:16" | "4:5" | "3:2" | "2:3";
+export type GenerationMediaType = "image" | "video";
+export type VideoDuration = 4 | 6 | 8;
 
 export interface GenerationSettings {
   aspectRatio: AspectRatioId;
@@ -6,6 +8,8 @@ export interface GenerationSettings {
   variety: number;
   draft: boolean;
   model: "flux" | "turbo";
+  videoDuration: VideoDuration;
+  videoAudio: boolean;
 }
 
 export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
@@ -14,6 +18,8 @@ export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
   variety: 25,
   draft: false,
   model: "flux",
+  videoDuration: 4,
+  videoAudio: false,
 };
 
 export interface ImagineEditState {
@@ -32,6 +38,7 @@ export interface GeneratedImage {
   id: string;
   url: string;
   seed: number;
+  mediaType?: GenerationMediaType;
 }
 
 export type GenerationStatus = "pending" | "generating" | "complete" | "failed";
@@ -48,6 +55,7 @@ export interface GenerationJob {
   parentImageId?: string;
   action?: "imagine" | "vary" | "upscale" | "reroll";
   styleId?: string | null;
+  mediaType?: GenerationMediaType;
   referenceImageDataUrl?: string;
   createdAt: string;
 }

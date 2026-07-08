@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState, type ReactNode } from "react";
+import type { CropRect } from "@/lib/types";
+import { DEFAULT_CROP } from "@/lib/types";
 import { useCanvasLayout } from "@/lib/hooks/useCanvasLayout";
 import { useEditorStore } from "@/lib/store/editorStore";
 
@@ -8,6 +10,7 @@ interface CanvasViewportProps {
   imageId?: string;
   originalDataUrl?: string;
   rotation?: number;
+  crop?: CropRect;
   imageUrl?: string | null;
   alt: string;
   children?: ReactNode;
@@ -23,6 +26,7 @@ export function CanvasViewport({
   imageId,
   originalDataUrl,
   rotation = 0,
+  crop = DEFAULT_CROP,
   imageUrl,
   alt,
   children,
@@ -36,7 +40,7 @@ export function CanvasViewport({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasView = useEditorStore((s) => s.canvasView);
   const setCanvasView = useEditorStore((s) => s.setCanvasView);
-  const layout = useCanvasLayout(imageId, originalDataUrl, rotation, containerRef);
+  const layout = useCanvasLayout(imageId, originalDataUrl, rotation, containerRef, crop);
   const [panning, setPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
 
@@ -117,7 +121,7 @@ export function CanvasViewport({
               style={{
                 width: layout.width,
                 height: layout.height,
-                objectFit: "fill",
+                objectFit: "contain",
                 display: "block",
                 boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
                 userSelect: "none",

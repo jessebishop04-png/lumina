@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useAuthStore } from "@/lib/store/authStore";
+import { DEFAULT_AVATAR_URL } from "@/lib/auth/guestName";
 
 type NavItem = {
   id: string;
@@ -137,7 +138,7 @@ function ProfileNavItem() {
   const user = useAuthStore((s) => s.user);
   const href = user ? "/account" : "/login";
   const active = pathname.startsWith("/account") || pathname.startsWith("/login");
-  const avatar = user?.avatarUrl ?? "https://picsum.photos/seed/lr-profile/64/64";
+  const avatar = user?.avatarUrl ?? DEFAULT_AVATAR_URL;
   const label = user ? user.displayName : "Sign in";
 
   return (

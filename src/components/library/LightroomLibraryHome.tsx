@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { PLACEHOLDER_GROUPS, PLACEHOLDER_PHOTO_COUNT } from "@/lib/constants/placeholderPhotos";
 import { ACCEPTED_IMAGE_EXTENSIONS, ACCEPTED_IMAGE_TYPES } from "@/lib/constants/exportPresets";
 import { useEditorStore } from "@/lib/store/editorStore";
 import type { ProjectSummary } from "@/lib/types";
@@ -56,15 +55,12 @@ export function LibraryGrid({ fileRef }: LibraryGridProps) {
     return () => clearTimeout(id);
   }, [loadRecentProjects]);
 
-  const totalPhotos = PLACEHOLDER_PHOTO_COUNT + recentProjects.reduce((n, p) => n + p.imageCount, 0);
+  const totalPhotos = recentProjects.reduce((n, p) => n + p.imageCount, 0);
   const query = search.trim().toLowerCase();
 
-  const filteredGroups = PLACEHOLDER_GROUPS.map((group) => ({
-    ...group,
-    photos: group.photos.filter(
-      (p) => !query || p.label.toLowerCase().includes(query) || group.label.toLowerCase().includes(query)
-    ),
-  })).filter((g) => g.photos.length > 0);
+  const filteredProjects = recentProjects.filter(
+    (p) => !query || p.name.toLowerCase().includes(query)
+  );
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", background: "var(--color-surface)", minWidth: 0 }}>
@@ -134,50 +130,45 @@ export function LibraryGrid({ fileRef }: LibraryGridProps) {
       </header>
 
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px 16px" }}>
-        {recentProjects.length > 0 && (
-          <section style={{ marginBottom: 32 }}>
+        {filteredProjects.length > 0 ? (
+          <section>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>Your edits</h2>
-              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{recentProjects.length} projects</span>
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>Your photos</h2>
+              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{filteredProjects.length} projects</span>
             </div>
             <div style={{ columnCount: Math.max(2, Math.floor(800 / gridSize)), columnGap: 2 }}>
-              {recentProjects.map((p) => (
+              {filteredProjects.map((p) => (
                 <ProjectPhoto key={p.id} project={p} onOpen={() => router.push(`/editor/${p.id}`)} />
               ))}
             </div>
           </section>
-        )}
-
-        {filteredGroups.map((group) => (
-          <section key={group.id} style={{ marginBottom: 32 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
-              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 14, fontWeight: 600, color: "var(--color-text-primary)", margin: 0 }}>{group.label}</h2>
-              <span style={{ fontSize: 13, color: "var(--color-text-secondary)" }}>{group.photos.length} photos</span>
-            </div>
-            <div style={{ columnCount: Math.max(3, Math.floor(900 / gridSize)), columnGap: 2 }}>
-              {group.photos.map((photo) => (
-                <button
-                  key={photo.id}
-                  onClick={() => fileRef.current?.click()}
-                  title="Upload your own photo to edit"
-                  style={{ breakInside: "avoid", marginBottom: 2, padding: 0, border: "none", cursor: "pointer", display: "block", width: "100%" }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photo.url}
-                    alt={photo.label}
-                    loading="lazy"
-                    decoding="async"
-                    style={{ width: "100%", display: "block", borderRadius: 1, background: "var(--color-surface-input)" }}
-                  />
-                </button>
-              ))}
-            </div>
-          </section>
-        ))}
-
-        {filteredGroups.length === 0 && (
-          <p style={{ textAlign: "center", color: "var(--color-text-secondary)", fontSize: 14, padding: 48 }}>No photos match your search.</p>
+        ) : (
+          <div style={{ textAlign: "center", padding: "64px 24px", maxWidth: 420, margin: "0 auto" }}>
+            <p style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 600, margin: "0 0 8px" }}>
+              {query ? "No photos match your search" : "No photos yet"}
+            </p>
+            <p style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.6, margin: "0 0 20px" }}>
+              {query ? "Try a different search term." : "Upload a photo or create something in Explore to get started."}
+            </p>
+            {!query && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "var(--color-accent)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: "pointer",
+                }}
+              >
+                Add photos
+              </button>
+            )}
+          </div>
         )}
       </div>
 

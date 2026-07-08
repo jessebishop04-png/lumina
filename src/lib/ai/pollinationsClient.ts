@@ -7,6 +7,7 @@ const POLLINATIONS_KEY = process.env.POLLINATIONS_API_KEY?.trim();
 
 const UPLOAD_TIMEOUT_MS = 120_000;
 const GENERATION_TIMEOUT_MS = 240_000;
+const VIDEO_TIMEOUT_MS = 300_000;
 
 /** Reuse uploaded reference URLs within the same server process. */
 const uploadedReferenceCache = new Map<string, string>();
@@ -307,4 +308,81 @@ export async function fetchPollinationsImage(options: {
 
 export function usesReferenceImg2Img(referenceImage?: string): boolean {
   return !!referenceImage && !!POLLINATIONS_KEY;
+}
+
+export function getVideoGenerationError(): string | null {
+  if (POLLINATIONS_KEY) return null;
+  return "Video generation requires POLLINATIONS_API_KEY in .env.local (get a key at enter.pollinations.ai).";
+}
+
+async function readVideoBytes(res: Response): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    throw new Error(await parseError(res));
+  }
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  if (buffer.length < 1000) {
+    throw new Error("Video response too small — generation may have failed.");
+  }
+
+  const mime = contentType.startsWith("video/") ? contentType.split(";")[0]!.trim() : "video/mp4";
+  return `data:${mime};base64,${buffer.toString("base64")}`;
+}
+
+export async function fetchPollinationsVideo(options: {
+  prompt: string;
+  aspectRatio: "16:9" | "9:16";
+  duration: number;
+  seed: number;
+  audio?: boolean;
+  referenceImage?: string;
+  referenceImageInput?: string;
+}): Promise<string> {
+  if (!POLLINATIONS_KEY) {
+    throw new Error(getVideoGenerationError()!);
+  }
+
+  const { prompt, aspectRatio, duration, seed, audio = false, referenceImage, referenceImageInput } = options;
+
+  let imageParam = referenceImageInput;
+  if (!imageParam && referenceImage) {
+    imageParam = (await prepareReferenceImage(referenceImage)).imageInput;
+  }
+
+  const params = new URLSearchParams();
+  params.set("model", audio ? "seedance-2.0" : "seedance-pro");
+  params.set("duration", String(duration));
+  params.set("aspectRatio", aspectRatio);
+  params.set("seed", String(seed));
+
+  if (audio) {
+    params.set("audio", "true");
+  }
+
+  if (imageParam) {
+    params.set("image", imageParam);
+  }
+
+  const url = `${GEN_BASE}/video/${encodeURIComponent(prompt)}?${params.toString()}`;
+
+  const res = await withNetworkRetry(
+    () =>
+      fetch(url, {
+        headers: { Authorization: `Bearer ${POLLINATIONS_KEY}` },
+        signal: AbortSignal.timeout(VIDEO_TIMEOUT_MS),
+      }),
+    2
+  );
+
+  if (res.status === 402) {
+    throw new Error("Insufficient Pollen for video. Top up at enter.pollinations.ai.");
+  }
+
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+
+  return readVideoBytes(res);
 }

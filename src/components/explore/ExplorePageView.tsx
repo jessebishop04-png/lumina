@@ -8,6 +8,7 @@ import { ExploreFilterBar } from "@/components/explore/ExploreFilterBar";
 import { ExploreGrid } from "@/components/explore/ExploreGrid";
 import { ExplorePostModal } from "@/components/explore/ExplorePostModal";
 import { ExploreSessionFeed } from "@/components/explore/ExploreSessionFeed";
+import { WelcomeAuthModal } from "@/components/auth/WelcomeAuthModal";
 import { useExploreStore } from "@/lib/store/exploreStore";
 import { useGenerationStore } from "@/lib/store/generationStore";
 
@@ -33,6 +34,7 @@ export function ExplorePageView() {
       }
       overlay={
         <>
+          <WelcomeAuthModal />
           <ExplorePostModal />
           <GenerationLightbox />
         </>

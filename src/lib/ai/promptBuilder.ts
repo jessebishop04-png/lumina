@@ -1,6 +1,12 @@
 import { applyStyleToPrompt } from "@/lib/constants/generationStyles";
 import type { GenerationSettings } from "@/lib/types/generation";
 
+export function buildVideoPrompt(prompt: string, styleId?: string | null): string {
+  const trimmed = applyStyleToPrompt(prompt, styleId ?? null);
+  if (trimmed) return `${trimmed}, smooth camera motion, high quality video`;
+  return "cinematic short video clip, smooth camera motion, high quality";
+}
+
 export function buildEnhancedPrompt(
   prompt: string,
   settings: GenerationSettings,

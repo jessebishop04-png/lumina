@@ -40,7 +40,7 @@ import { publishToExplore } from "@/lib/explore/publishToExplore";
 import { notifyExploreNewPost } from "@/lib/store/exploreStore";
 import type { ProjectSummary } from "@/lib/types";
 
-export type EditorModule = "edit" | "crop" | "ai";
+export type EditorModule = "edit" | "crop";
 
 interface EditorState {
   project: Project | null;
@@ -874,12 +874,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       editorModule: module,
       isAdjusting: false,
       adjustingCount: 0,
-      activePanel:
-        module === "ai"
-          ? "suggestions"
-          : module === "edit"
-            ? "light"
-            : get().activePanel,
+      activePanel: module === "edit" ? "light" : get().activePanel,
     });
   },
   setActivePanel: (panel) => set({ activePanel: panel }),

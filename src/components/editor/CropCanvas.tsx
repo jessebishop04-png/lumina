@@ -134,6 +134,7 @@ export function CropCanvas() {
       imageId={activeImage.id}
       originalDataUrl={activeImage.originalDataUrl}
       rotation={activeImage.rotation}
+      crop={DEFAULT_CROP}
       imageUrl={activeImage.originalDataUrl}
       alt={activeImage.name}
       cursor="default"

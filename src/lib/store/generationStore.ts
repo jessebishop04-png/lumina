@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
-import type { GeneratedImage, GenerationJob, GenerationSettings } from "@/lib/types/generation";
+import type { GeneratedImage, GenerationJob, GenerationMediaType, GenerationSettings } from "@/lib/types/generation";
 import { DEFAULT_GENERATION_SETTINGS } from "@/lib/types/generation";
 import {
   deleteGenerationJob,
@@ -15,6 +15,7 @@ interface GenerationState {
   settings: GenerationSettings;
   prompt: string;
   referenceImageDataUrl: string | null;
+  mediaType: GenerationMediaType;
   activeStyleId: string | null;
   isGenerating: boolean;
   selectedJobId: string | null;
@@ -23,6 +24,7 @@ interface GenerationState {
   loadJobs: () => Promise<void>;
   setPrompt: (prompt: string) => void;
   setReferenceImage: (dataUrl: string | null) => void;
+  setMediaType: (mediaType: GenerationMediaType) => void;
   toggleStyle: (styleId: string) => void;
   setSettings: (settings: Partial<GenerationSettings>) => void;
   setSelected: (jobId: string | null, imageId: string | null) => void;
@@ -54,10 +56,69 @@ async function callGenerateApi(
   return data.images;
 }
 
+async function callGenerateVideoApi(
+  prompt: string,
+  settings: GenerationSettings,
+  opts: { seed?: number; styleId?: string | null; referenceImageDataUrl?: string } = {}
+): Promise<{ url: string; seed: number }[]> {
+  const res = await fetch("/api/generate/video", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, settings, ...opts }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "Video generation failed");
+  return data.videos;
+}
+
+async function runVideoGeneration(
+  job: GenerationJob,
+  onUpdate: (job: GenerationJob) => void
+): Promise<GenerationJob> {
+  const seed = Math.floor(Math.random() * 999999);
+  const current: GenerationJob = { ...job, status: "generating", progress: 0, images: [] };
+  onUpdate(current);
+  await saveGenerationJob(current);
+
+  try {
+    const results = await callGenerateVideoApi(job.prompt, job.settings, {
+      seed,
+      styleId: job.styleId,
+      referenceImageDataUrl: job.referenceImageDataUrl,
+    });
+
+    const images: GeneratedImage[] = results.map((result) => ({
+      id: uuidv4(),
+      url: result.url,
+      seed: result.seed,
+      mediaType: "video",
+    }));
+
+    const complete = { ...current, status: "complete" as const, progress: 100, images };
+    onUpdate(complete);
+    await saveGenerationJob(complete);
+    return complete;
+  } catch (err) {
+    const failed = {
+      ...current,
+      status: "failed" as const,
+      error: err instanceof Error ? err.message : "Failed",
+      progress: 0,
+    };
+    onUpdate(failed);
+    await saveGenerationJob(failed);
+    return failed;
+  }
+}
+
 async function runGeneration(
   job: GenerationJob,
   onUpdate: (job: GenerationJob) => void
 ): Promise<GenerationJob> {
+  if (job.mediaType === "video") {
+    return runVideoGeneration(job, onUpdate);
+  }
+
   const count = job.action === "upscale" ? 1 : 4;
   const seeds = Array.from({ length: count }, () => Math.floor(Math.random() * 999999));
   const images: GeneratedImage[] = [];
@@ -79,6 +140,7 @@ async function runGeneration(
         id: uuidv4(),
         url: results[0].url,
         seed: results[0].seed,
+        mediaType: "image",
       });
       const latestImage = images[images.length - 1]!;
       void publishToExplore({
@@ -129,6 +191,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   settings: { ...DEFAULT_GENERATION_SETTINGS },
   prompt: "",
   referenceImageDataUrl: null,
+  mediaType: "image",
   activeStyleId: null,
   isGenerating: false,
   selectedJobId: null,
@@ -141,6 +204,14 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   setPrompt: (prompt) => set({ prompt }),
   setReferenceImage: (dataUrl) => set({ referenceImageDataUrl: dataUrl }),
+  setMediaType: (mediaType) =>
+    set((s) => ({
+      mediaType,
+      settings:
+        mediaType === "video" && s.settings.aspectRatio !== "9:16" && s.settings.aspectRatio !== "16:9"
+          ? { ...s.settings, aspectRatio: "9:16" }
+          : s.settings,
+    })),
   toggleStyle: (styleId) =>
     set((s) => ({
       activeStyleId: s.activeStyleId === styleId ? null : styleId,
@@ -149,7 +220,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   setSelected: (jobId, imageId) => set({ selectedJobId: jobId, selectedImageId: imageId }),
 
   imagine: async (promptOverride) => {
-    const { prompt, settings, referenceImageDataUrl, activeStyleId, isGenerating } = get();
+    const { prompt, settings, referenceImageDataUrl, mediaType, activeStyleId, isGenerating } = get();
     const text = (promptOverride ?? prompt).trim();
     if ((!text && !referenceImageDataUrl) || isGenerating) return null;
 
@@ -161,6 +232,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       status: "pending",
       progress: 0,
       action: "imagine",
+      mediaType,
       styleId: activeStyleId,
       referenceImageDataUrl: referenceImageDataUrl ?? undefined,
       createdAt: new Date().toISOString(),
@@ -183,7 +255,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   vary: async (jobId, imageId) => {
     const source = get().jobs.find((j) => j.id === jobId);
     const sourceImage = source?.images.find((i) => i.id === imageId);
-    if (!source || !sourceImage || get().isGenerating) return null;
+    if (!source || !sourceImage || get().isGenerating || source.mediaType === "video") return null;
 
     const job: GenerationJob = {
       id: uuidv4(),
@@ -193,6 +265,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       status: "pending",
       progress: 0,
       action: "vary",
+      mediaType: "image",
       parentJobId: jobId,
       parentImageId: imageId,
       createdAt: new Date().toISOString(),
@@ -212,7 +285,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
 
   upscale: async (jobId, imageId) => {
     const source = get().jobs.find((j) => j.id === jobId);
-    if (!source || get().isGenerating) return null;
+    if (!source || get().isGenerating || source.mediaType === "video") return null;
 
     const job: GenerationJob = {
       id: uuidv4(),
@@ -222,6 +295,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       status: "pending",
       progress: 0,
       action: "upscale",
+      mediaType: "image",
       parentJobId: jobId,
       parentImageId: imageId,
       createdAt: new Date().toISOString(),
@@ -246,6 +320,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     set({
       prompt: source.prompt,
       settings: source.settings,
+      mediaType: source.mediaType ?? "image",
       activeStyleId: source.styleId ?? null,
       referenceImageDataUrl: source.referenceImageDataUrl ?? null,
     });

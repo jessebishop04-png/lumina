@@ -1,19 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store/authStore";
+import { signInWithGoogle } from "@/lib/auth/signInOut";
 
 type AuthMode = "signin" | "signup";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const user = useAuthStore((s) => s.user);
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest);
   const signUpWithEmail = useAuthStore((s) => s.signUpWithEmail);
   const signInWithEmail = useAuthStore((s) => s.signInWithEmail);
-  const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
 
   const [mode, setMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
@@ -24,6 +25,12 @@ export default function LoginPage() {
   useEffect(() => {
     if (user) router.replace("/");
   }, [user, router]);
+
+  useEffect(() => {
+    const initial = searchParams.get("mode");
+    if (initial === "signup") setMode("signup");
+    if (initial === "signin") setMode("signin");
+  }, [searchParams]);
 
   const finish = () => router.push("/");
 
@@ -56,7 +63,7 @@ export default function LoginPage() {
             padding: 28,
           }}
         >
-          <button type="button" onClick={() => { signInWithGoogle(); finish(); }} style={googleBtnStyle}>
+          <button type="button" onClick={() => signInWithGoogle("/")} style={googleBtnStyle}>
             <GoogleIcon />
             Continue with Google
           </button>
@@ -136,6 +143,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
 

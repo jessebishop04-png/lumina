@@ -7,7 +7,7 @@ import { useGenerationStore } from "@/lib/store/generationStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { ModalPortal } from "@/components/layout/ModalPortal";
 
-function ImageSlot({
+function MediaSlot({
   image,
   job,
   index,
@@ -18,9 +18,11 @@ function ImageSlot({
   index: number;
   onSelect: () => void;
 }) {
+  const isVideo = job.mediaType === "video";
   const isLoading = job.status === "generating" && !image;
   const filled = job.images.length;
   const showLoader = isLoading && index >= filled;
+  const aspectRatio = isVideo ? "9 / 16" : "1";
 
   return (
     <button
@@ -28,7 +30,8 @@ function ImageSlot({
       onClick={image ? onSelect : undefined}
       style={{
         position: "relative",
-        aspectRatio: "1",
+        aspectRatio,
+        maxHeight: isVideo ? 420 : undefined,
         borderRadius: 8,
         overflow: "hidden",
         border: "1px solid var(--color-border)",
@@ -38,8 +41,19 @@ function ImageSlot({
       }}
     >
       {image ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={image.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        image.mediaType === "video" || isVideo ? (
+          <video
+            src={image.url}
+            muted
+            loop
+            playsInline
+            autoPlay
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={image.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        )
       ) : showLoader ? (
         <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div className="spinner" style={{ width: 20, height: 20 }} />
@@ -80,7 +94,8 @@ function JobActions({ job }: { job: GenerationJob }) {
 
 export function GenerationJobCard({ job }: { job: GenerationJob }) {
   const setSelected = useGenerationStore((s) => s.setSelected);
-  const slots = job.action === "upscale" ? 1 : 4;
+  const isVideo = job.mediaType === "video";
+  const slots = isVideo || job.action === "upscale" ? 1 : 4;
   const style = getStyleById(job.styleId ?? null);
 
   return (
@@ -88,13 +103,13 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <div style={{ marginBottom: 12 }}>
           <p style={{ fontSize: 14, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.4 }}>
-            {job.prompt || (job.referenceImageDataUrl ? "Reference image generation" : "")}
+            {job.prompt || (job.referenceImageDataUrl ? "Reference generation" : "")}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
-              {new Date(job.createdAt).toLocaleString()} · {job.settings.aspectRatio}
-              {job.settings.draft ? " · Draft" : ""}
-              {job.action !== "imagine" ? ` · ${job.action}` : ""}
+              {new Date(job.createdAt).toLocaleString()} · {isVideo ? "Video" : "Image"} · {job.settings.aspectRatio}
+              {isVideo ? ` · ${job.settings.videoDuration ?? 4}s` : job.settings.draft ? " · Draft" : ""}
+              {!isVideo && job.action !== "imagine" ? ` · ${job.action}` : ""}
               {style ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   · {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -113,7 +128,9 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
               {job.referenceImageDataUrl ? " · 🖼 Reference" : ""}
             </span>
             {job.status === "generating" && (
-              <span style={{ fontSize: 11, color: "var(--color-accent)" }}>{job.progress}%</span>
+              <span style={{ fontSize: 11, color: "var(--color-accent)" }}>
+                {isVideo ? "Generating video…" : `${job.progress}%`}
+              </span>
             )}
             {job.status === "failed" && (
               <span style={{ fontSize: 11, color: "#e74c3c" }}>{job.error ?? "Failed"}</span>
@@ -126,11 +143,12 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
             display: "grid",
             gridTemplateColumns: slots === 1 ? "1fr" : "1fr 1fr",
             gap: 4,
-            maxWidth: slots === 1 ? 360 : 720,
+            maxWidth: isVideo ? 280 : slots === 1 ? 360 : 720,
+            margin: isVideo ? "0 auto" : undefined,
           }}
         >
           {Array.from({ length: slots }).map((_, i) => (
-            <ImageSlot
+            <MediaSlot
               key={i}
               image={job.images[i]}
               job={job}
@@ -165,7 +183,7 @@ export function CreationFeed({ embedded = false }: { embedded?: boolean }) {
             Create with Lumina
           </p>
           <p style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.6, margin: 0 }}>
-            Type a prompt, drop a reference image, or pick a style in the box above. Lumina generates 4 variations — open any image in the photo editor or download it.
+            Type a prompt to generate images or short-form videos. Switch to Video above the prompt bar for 9:16 clips.
           </p>
         </div>
       </div>
@@ -205,6 +223,7 @@ export function GenerationLightbox() {
   const image = job?.images.find((i) => i.id === selectedImageId);
   if (!job || !image) return null;
 
+  const isVideo = job.mediaType === "video" || image.mediaType === "video";
   const close = () => setSelected(null, null);
 
   const openInEditor = async () => {
@@ -258,12 +277,23 @@ export function GenerationLightbox() {
         style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, minHeight: 0 }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={image.url}
-          alt=""
-          style={{ maxWidth: "100%", maxHeight: "calc(100vh - 180px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
-        />
+        {isVideo ? (
+          <video
+            src={image.url}
+            controls
+            autoPlay
+            loop
+            playsInline
+            style={{ maxWidth: "100%", maxHeight: "calc(100vh - 180px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={image.url}
+            alt=""
+            style={{ maxWidth: "100%", maxHeight: "calc(100vh - 180px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
+          />
+        )}
       </div>
 
       <div
@@ -282,20 +312,22 @@ export function GenerationLightbox() {
           onClick={() => {
             const a = document.createElement("a");
             a.href = image.url;
-            a.download = "lumina-generation.png";
+            a.download = isVideo ? "lumina-video.mp4" : "lumina-generation.png";
             a.click();
           }}
           style={btnStyle}
         >
           Download
         </button>
-        <button
-          type="button"
-          onClick={() => void openInEditor()}
-          style={{ ...btnStyle, background: "var(--color-accent)", borderColor: "var(--color-accent)", color: "#fff" }}
-        >
-          Edit in Lumina
-        </button>
+        {!isVideo && (
+          <button
+            type="button"
+            onClick={() => void openInEditor()}
+            style={{ ...btnStyle, background: "var(--color-accent)", borderColor: "var(--color-accent)", color: "#fff" }}
+          >
+            Edit in Lumina
+          </button>
+        )}
       </div>
     </div>
     </ModalPortal>

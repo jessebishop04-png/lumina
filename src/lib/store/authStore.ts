@@ -12,7 +12,7 @@ interface AuthState {
   continueAsGuest: () => AuthUser;
   signUpWithEmail: (email: string, password: string, displayName: string) => AuthUser;
   signInWithEmail: (email: string, password: string) => AuthUser | null;
-  signInWithGoogle: () => AuthUser;
+  syncGoogleUser: (user: AuthUser) => void;
   signOut: () => void;
   updateProfile: (partial: { displayName?: string; username?: string }) => void;
 }
@@ -106,22 +106,8 @@ export const useAuthStore = create<AuthState>()(
         return account.user;
       },
 
-      signInWithGoogle: () => {
-        const names = ["Alex Rivera", "Jordan Lee", "Sam Chen", "Taylor Kim", "Morgan Blake"];
-        const displayName = names[Math.floor(Math.random() * names.length)];
-        const id = uuidv4();
-        const email = `${displayName.toLowerCase().replace(/\s+/g, ".")}@gmail.com`;
-        const user: AuthUser = {
-          id,
-          username: email.split("@")[0],
-          displayName,
-          email,
-          avatarUrl: avatarUrlForUser(id),
-          authMethod: "google",
-          createdAt: new Date().toISOString(),
-        };
+      syncGoogleUser: (user) => {
         set({ user });
-        return user;
       },
 
       signOut: () => set({ user: null }),

@@ -1,14 +1,15 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import type { ExplorePost, ExplorePostView, ExploreComment } from "@/lib/types/explore";
-import { buildSeedExplorePosts } from "@/lib/explore/exploreSeed";
+import { EXPLORE_CATALOG_VERSION } from "@/lib/explore/exploreCatalog";
+import { buildCatalogExplorePosts } from "@/lib/explore/exploreSeed";
 import { getGenerationJobs } from "@/lib/storage/generationStorage";
 import {
   getExplorePosts,
   getFollowedCreatorIds,
   getLikedPostIds,
   getCommentsForPost,
-  saveExplorePost,
+  replaceCatalogExplorePosts,
   saveExploreComment,
   setFollowedCreatorIds,
   setLikedPostIds,
@@ -18,6 +19,8 @@ import { publishToExplore } from "@/lib/explore/publishToExplore";
 import { requireLocalProfile } from "@/lib/user/localProfile";
 
 import type { ExploreFilter } from "@/lib/types/explore";
+
+const CATALOG_STORAGE_KEY = "lumina-explore-catalog-version";
 
 interface ExploreState {
   posts: ExplorePostView[];
@@ -65,6 +68,33 @@ function applyFilter(posts: ExplorePostView[], filterTab: ExploreFilter): Explor
   return sortPosts(posts);
 }
 
+async function ensureCatalogPosts(): Promise<ExplorePost[]> {
+  const catalogVersion = typeof window !== "undefined" ? localStorage.getItem(CATALOG_STORAGE_KEY) : null;
+  let posts = await getExplorePosts();
+
+  const hasLegacyPlaceholders = posts.some(
+    (p) => p.source === "seed" && (p.imageUrl.includes("picsum.photos") || !p.sourceKey.startsWith("catalog:"))
+  );
+  const needsCatalog = posts.length === 0 || catalogVersion !== EXPLORE_CATALOG_VERSION || hasLegacyPlaceholders;
+
+  if (needsCatalog) {
+    const catalog = buildCatalogExplorePosts();
+    try {
+      await replaceCatalogExplorePosts(catalog);
+      posts = await getExplorePosts();
+      if (typeof window !== "undefined") {
+        localStorage.setItem(CATALOG_STORAGE_KEY, EXPLORE_CATALOG_VERSION);
+      }
+    } catch (err) {
+      console.warn("Could not persist explore catalog, showing in memory:", err);
+      const userPosts = posts.filter((p) => p.source !== "seed" && !p.imageUrl.includes("picsum.photos"));
+      posts = [...catalog, ...userPosts];
+    }
+  }
+
+  return posts;
+}
+
 export const useExploreStore = create<ExploreState>((set, get) => ({
   posts: [],
   allPosts: [],
@@ -77,24 +107,13 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   loadExplore: async () => {
     set({ isLoading: true });
     try {
-      let posts = await getExplorePosts();
-      if (posts.length === 0) {
-        const seeds = buildSeedExplorePosts();
-        try {
-          await Promise.all(seeds.map((post) => saveExplorePost(post)));
-          posts = seeds;
-        } catch (persistErr) {
-          console.warn("Could not persist explore seeds, showing in memory:", persistErr);
-          posts = seeds;
-        }
-      }
-
+      const posts = await ensureCatalogPosts();
       const enriched = enrichPosts(posts);
       set({ allPosts: enriched, posts: applyFilter(enriched, get().filterTab) });
     } catch (err) {
       console.error("Failed to load explore:", err);
-      const seeds = buildSeedExplorePosts();
-      const enriched = enrichPosts(seeds);
+      const catalog = buildCatalogExplorePosts();
+      const enriched = enrichPosts(catalog);
       set({ allPosts: enriched, posts: applyFilter(enriched, get().filterTab) });
     } finally {
       set({ isLoading: false });
@@ -140,7 +159,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
 
   toggleLike: async (postId) => {
     const liked = getLikedPostIds();
-    const post = get().posts.find((p) => p.id === postId);
+    const post = get().posts.find((p) => p.id === postId) ?? get().allPosts.find((p) => p.id === postId);
     if (!post) return;
 
     const nextLiked = new Set(liked);

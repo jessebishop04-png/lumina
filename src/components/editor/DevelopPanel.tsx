@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ADJUSTMENT_SECTIONS, getAdjustmentsBySection } from "@/lib/constants/adjustments";
-import { getPresetsByCategory, PRESET_CATEGORIES } from "@/lib/constants/suggestions";
 import { useActiveImage, useEditorStore } from "@/lib/store/editorStore";
 import { Slider } from "@/components/ui/Slider";
 import { CropPanel } from "@/components/editor/CropPanel";
@@ -83,69 +82,9 @@ function AccordionSection({
   );
 }
 
-function PresetsPanel() {
-  const applySuggestion = useEditorStore((s) => s.applySuggestion);
-  const persistProject = useEditorStore((s) => s.persistProject);
-
-  return (
-    <div style={{ padding: "8px 0" }}>
-      {PRESET_CATEGORIES.map((category) => {
-        const presets = getPresetsByCategory(category);
-        if (presets.length === 0) return null;
-        return (
-          <div key={category} style={{ marginBottom: 8 }}>
-            <p
-              style={{
-                padding: "8px 16px 4px",
-                fontSize: 10,
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: "var(--color-text-secondary)",
-              }}
-            >
-              {category}
-            </p>
-            {presets.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => {
-                  applySuggestion(preset.adjustments);
-                  void persistProject();
-                }}
-                type="button"
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "10px 16px",
-                  borderRadius: 8,
-                  textAlign: "left",
-                  marginBottom: 2,
-                  transition: "background 0.1s",
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "var(--color-surface-hover)")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
-                <span style={{ fontSize: 18, width: 32, textAlign: "center" }}>{preset.icon}</span>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: "var(--color-text-primary)" }}>{preset.label}</div>
-                  <div style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>{preset.description}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 const PANEL_TITLES: Record<string, string> = {
   edit: "Adjustments",
   crop: "Crop & Rotate",
-  ai: "Presets",
 };
 
 export function DevelopPanel() {
@@ -195,8 +134,6 @@ export function DevelopPanel() {
           <p style={{ textAlign: "center", color: "var(--color-text-secondary)", fontSize: 13, padding: 32 }}>
             Select a photo from the filmstrip
           </p>
-        ) : editorModule === "ai" ? (
-          <PresetsPanel />
         ) : editorModule === "crop" ? (
           <CropPanel />
         ) : (

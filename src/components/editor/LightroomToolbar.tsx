@@ -6,7 +6,6 @@ import { useEditorStore } from "@/lib/store/editorStore";
 const MODULES: { id: EditorModule; label: string }[] = [
   { id: "edit", label: "Adjust" },
   { id: "crop", label: "Crop & Rotate" },
-  { id: "ai", label: "Presets" },
 ];
 
 export function LightroomToolbar() {

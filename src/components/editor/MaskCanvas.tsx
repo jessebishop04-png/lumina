@@ -92,6 +92,7 @@ export function MaskCanvas() {
       imageId={activeImage.id}
       originalDataUrl={activeImage.originalDataUrl}
       rotation={activeImage.rotation}
+      crop={activeImage.crop}
       imageUrl={displayUrl}
       alt={activeImage.name}
       cursor="crosshair"

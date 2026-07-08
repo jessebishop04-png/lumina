@@ -36,9 +36,10 @@ export function ExplorePostActionsMenu({ onCopyPrompt, onEditCopy, onDownload, c
         className="explore-modal-btn"
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label="Actions"
         onClick={() => setOpen((v) => !v)}
       >
-        ⋯ Actions
+        ⋯
       </button>
       {open && (
         <div className="explore-actions-dropdown" role="menu">

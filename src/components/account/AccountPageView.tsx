@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AppPageShell } from "@/components/layout/AppPageShell";
 import { getGenerationJobs } from "@/lib/storage/generationStorage";
 import { useAuthStore } from "@/lib/store/authStore";
+import { signOutUser } from "@/lib/auth/signInOut";
 
 type AccountSection = "profile" | "subscription" | "billing";
 
@@ -13,7 +14,6 @@ export function AccountPageView() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isHydrated = useAuthStore((s) => s.isHydrated);
-  const signOut = useAuthStore((s) => s.signOut);
   const updateProfile = useAuthStore((s) => s.updateProfile);
 
   const [section, setSection] = useState<AccountSection>("profile");
@@ -79,8 +79,7 @@ export function AccountPageView() {
             type="button"
             className="account-nav-item account-nav-signout"
             onClick={() => {
-              signOut();
-              router.push("/login");
+              void signOutUser().then(() => router.push("/login"));
             }}
           >
             Sign out
