@@ -47,7 +47,7 @@ export function StudioCanvas() {
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [studio?.eraseMaskDataUrl, layout.imgW, layout.imgH]);
+  }, [studio, layout.imgW, layout.imgH]);
 
   const paint = useCallback(
     (e: React.PointerEvent, erase: boolean) => {
