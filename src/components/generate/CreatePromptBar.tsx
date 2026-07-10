@@ -70,22 +70,6 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
       }}
     >
       <div className={`create-prompt-inner${wide ? " is-wide" : ""}${isFlat ? " is-full" : ""}`}>
-        <div className="create-media-toggle">
-          <button
-            type="button"
-            className={`create-media-toggle-btn${mediaType === "image" ? " is-active" : ""}`}
-            onClick={() => setMediaType("image")}
-          >
-            Image
-          </button>
-          <button
-            type="button"
-            className={`create-media-toggle-btn${mediaType === "video" ? " is-active" : ""}`}
-            onClick={() => setMediaType("video")}
-          >
-            Video
-          </button>
-        </div>
         <div
           {...dragHandlers}
           className={`create-prompt-shell${isDragging ? " is-dragging" : ""}${isFlat ? " create-prompt-shell--flat" : ""}`}
@@ -131,6 +115,23 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
               }
               rows={2}
             />
+
+            <div className="create-media-toggle create-media-toggle--inline" role="group" aria-label="Media type">
+              <button
+                type="button"
+                className={`create-media-toggle-btn${mediaType === "image" ? " is-active" : ""}`}
+                onClick={() => setMediaType("image")}
+              >
+                Image
+              </button>
+              <button
+                type="button"
+                className={`create-media-toggle-btn${mediaType === "video" ? " is-active" : ""}`}
+                onClick={() => setMediaType("video")}
+              >
+                Video
+              </button>
+            </div>
 
             <button type="button" className={`create-prompt-icon-btn${showSettings ? " is-active" : ""}`} onClick={() => setShowSettings((v) => !v)} title="Settings">
               ⚙

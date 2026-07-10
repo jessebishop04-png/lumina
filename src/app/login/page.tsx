@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store/authStore";
-import { signInWithGoogle } from "@/lib/auth/signInOut";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type AuthMode = "signin" | "signup";
 
@@ -30,6 +30,19 @@ function LoginForm() {
     const initial = searchParams.get("mode");
     if (initial === "signup") setMode("signup");
     if (initial === "signin") setMode("signin");
+  }, [searchParams]);
+
+  useEffect(() => {
+    const authError = searchParams.get("error");
+    if (!authError) return;
+
+    if (authError === "Configuration") {
+      setError("Google sign-in is not configured on the server. Check AUTH_SECRET and Google OAuth env vars.");
+    } else if (authError === "AccessDenied") {
+      setError("Google sign-in was cancelled or denied.");
+    } else {
+      setError("Could not sign in with Google. Please try again.");
+    }
   }, [searchParams]);
 
   const finish = () => router.push("/");
@@ -63,10 +76,10 @@ function LoginForm() {
             padding: 28,
           }}
         >
-          <button type="button" onClick={() => signInWithGoogle("/")} style={googleBtnStyle}>
+          <GoogleSignInButton redirectTo="/" style={googleBtnStyle}>
             <GoogleIcon />
             Continue with Google
-          </button>
+          </GoogleSignInButton>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "20px 0" }}>
             <div style={{ flex: 1, height: 1, background: "var(--color-border)" }} />

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useAuthStore } from "@/lib/store/authStore";
-import { signInWithGoogle } from "@/lib/auth/signInOut";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { ModalPortal } from "@/components/layout/ModalPortal";
 
 export function WelcomeAuthModal() {
@@ -29,14 +29,10 @@ export function WelcomeAuthModal() {
           </p>
 
           <div className="welcome-auth-actions">
-            <button
-              type="button"
-              className="welcome-auth-btn welcome-auth-btn--google"
-              onClick={() => signInWithGoogle("/")}
-            >
+            <GoogleSignInButton redirectTo="/" className="welcome-auth-btn welcome-auth-btn--google">
               <GoogleIcon />
               Continue with Google
-            </button>
+            </GoogleSignInButton>
             <Link href="/login?mode=signup" className="welcome-auth-btn welcome-auth-btn--primary">
               Create account
             </Link>
@@ -48,7 +44,7 @@ export function WelcomeAuthModal() {
               className="welcome-auth-btn welcome-auth-btn--ghost"
               onClick={() => {
                 continueAsGuest();
-                router.refresh();
+                router.push("/");
               }}
             >
               Continue as guest
