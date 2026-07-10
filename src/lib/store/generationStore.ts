@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
-import type { GeneratedImage, GenerationJob, GenerationMediaType, GenerationSettings } from "@/lib/types/generation";
+import type { AnimateImageOptions, AnimateTarget, GeneratedImage, GenerationJob, GenerationMediaType, GenerationSettings, ImageAnimation } from "@/lib/types/generation";
 import { DEFAULT_GENERATION_SETTINGS } from "@/lib/types/generation";
 import {
   deleteGenerationJob,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/storage/generationStorage";
 import { publishToExplore } from "@/lib/explore/publishToExplore";
 import { notifyExploreNewPost } from "@/lib/store/exploreStore";
+import { urlToDataUrl } from "@/lib/image/urlToDataUrl";
 
 interface GenerationState {
   jobs: GenerationJob[];
@@ -20,6 +21,8 @@ interface GenerationState {
   isGenerating: boolean;
   selectedJobId: string | null;
   selectedImageId: string | null;
+  selectedAnimationId: string | null;
+  animateTarget: AnimateTarget | null;
 
   loadJobs: () => Promise<void>;
   setPrompt: (prompt: string) => void;
@@ -27,11 +30,14 @@ interface GenerationState {
   setMediaType: (mediaType: GenerationMediaType) => void;
   toggleStyle: (styleId: string) => void;
   setSettings: (settings: Partial<GenerationSettings>) => void;
-  setSelected: (jobId: string | null, imageId: string | null) => void;
+  setSelected: (jobId: string | null, imageId: string | null, animationId?: string | null) => void;
+  setAnimateTarget: (target: AnimateTarget | null) => void;
   imagine: (prompt?: string) => Promise<string | null>;
   vary: (jobId: string, imageId: string) => Promise<string | null>;
   upscale: (jobId: string, imageId: string) => Promise<string | null>;
   reroll: (jobId: string) => Promise<string | null>;
+  animateImage: (jobId: string, imageId: string, options?: AnimateImageOptions) => Promise<string | null>;
+  animateFromUrl: (imageUrl: string, prompt?: string, styleId?: string | null, options?: AnimateImageOptions) => Promise<string | null>;
   deleteJob: (jobId: string) => Promise<void>;
 }
 
@@ -186,6 +192,51 @@ function updateJobInList(jobs: GenerationJob[], updated: GenerationJob): Generat
   return next;
 }
 
+async function runInPlaceAnimation(
+  jobId: string,
+  animation: ImageAnimation,
+  referenceImageDataUrl: string,
+  onUpdate: (job: GenerationJob) => void,
+  getJob: () => GenerationJob | undefined
+): Promise<void> {
+  const patchAnimation = (patch: Partial<ImageAnimation>) => {
+    const current = getJob();
+    if (!current) return;
+    const animations = (current.animations ?? []).map((a) =>
+      a.id === animation.id ? { ...a, ...patch } : a
+    );
+    const updated = { ...current, animations };
+    onUpdate(updated);
+    void saveGenerationJob(updated);
+  };
+
+  try {
+    const results = await callGenerateVideoApi(animation.prompt, {
+      ...DEFAULT_GENERATION_SETTINGS,
+      aspectRatio: animation.settings.aspectRatio,
+      videoDuration: animation.settings.videoDuration,
+      videoAudio: animation.settings.videoAudio,
+    }, {
+      seed: Math.floor(Math.random() * 999999),
+      styleId: animation.styleId,
+      referenceImageDataUrl,
+    });
+
+    const video: GeneratedImage = {
+      id: uuidv4(),
+      url: results[0]!.url,
+      seed: results[0]!.seed,
+      mediaType: "video",
+    };
+    patchAnimation({ status: "complete", video });
+  } catch (err) {
+    patchAnimation({
+      status: "failed",
+      error: err instanceof Error ? err.message : "Failed",
+    });
+  }
+}
+
 export const useGenerationStore = create<GenerationState>((set, get) => ({
   jobs: [],
   settings: { ...DEFAULT_GENERATION_SETTINGS },
@@ -196,6 +247,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   isGenerating: false,
   selectedJobId: null,
   selectedImageId: null,
+  selectedAnimationId: null,
+  animateTarget: null,
 
   loadJobs: async () => {
     const jobs = await getGenerationJobs();
@@ -217,7 +270,10 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       activeStyleId: s.activeStyleId === styleId ? null : styleId,
     })),
   setSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
-  setSelected: (jobId, imageId) => set({ selectedJobId: jobId, selectedImageId: imageId }),
+  setSelected: (jobId, imageId, animationId = null) =>
+    set({ selectedJobId: jobId, selectedImageId: imageId, selectedAnimationId: animationId }),
+
+  setAnimateTarget: (target) => set({ animateTarget: target }),
 
   imagine: async (promptOverride) => {
     const { prompt, settings, referenceImageDataUrl, mediaType, activeStyleId, isGenerating } = get();
@@ -327,11 +383,113 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     return get().imagine(source.prompt);
   },
 
+  animateImage: async (jobId, imageId, options = {}) => {
+    const source = get().jobs.find((j) => j.id === jobId);
+    const sourceImage = source?.images.find((i) => i.id === imageId);
+    if (!source || !sourceImage || sourceImage.mediaType === "video") return null;
+
+    const aspectRatio = options.aspectRatio === "16:9" ? "16:9" : "9:16";
+    const videoDuration = options.videoDuration ?? 4;
+    const videoAudio = options.videoAudio ?? false;
+    const styleId = options.styleId ?? source.styleId ?? get().activeStyleId;
+    const motionPrompt =
+      options.motionPrompt?.trim() ||
+      source.prompt ||
+      "gentle cinematic motion, subtle natural movement";
+
+    let referenceImageDataUrl: string;
+    try {
+      referenceImageDataUrl = await urlToDataUrl(sourceImage.url);
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+
+    const animation: ImageAnimation = {
+      id: uuidv4(),
+      sourceImageId: imageId,
+      prompt: motionPrompt,
+      styleId,
+      settings: { aspectRatio, videoDuration, videoAudio },
+      status: "generating",
+      createdAt: new Date().toISOString(),
+    };
+
+    const updatedJob: GenerationJob = {
+      ...source,
+      animations: [...(source.animations ?? []), animation],
+    };
+
+    set((s) => ({ jobs: updateJobInList(s.jobs, updatedJob) }));
+    await saveGenerationJob(updatedJob);
+
+    const onUpdate = (job: GenerationJob) => {
+      set((s) => ({ jobs: updateJobInList(s.jobs, job) }));
+    };
+
+    void runInPlaceAnimation(jobId, animation, referenceImageDataUrl, onUpdate, () =>
+      get().jobs.find((j) => j.id === jobId)
+    );
+
+    return animation.id;
+  },
+
+  animateFromUrl: async (imageUrl, prompt, styleId, options = {}) => {
+    if (get().isGenerating) return null;
+
+    let referenceImageDataUrl = imageUrl;
+    try {
+      referenceImageDataUrl = await urlToDataUrl(imageUrl);
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
+
+    const aspectRatio = options.aspectRatio === "16:9" ? "16:9" : "9:16";
+    const videoDuration = options.videoDuration ?? 4;
+    const videoAudio = options.videoAudio ?? false;
+    const motionPrompt =
+      options.motionPrompt?.trim() ||
+      prompt?.trim() ||
+      "gentle cinematic motion, subtle natural movement";
+
+    const job: GenerationJob = {
+      id: uuidv4(),
+      prompt: motionPrompt,
+      settings: {
+        ...get().settings,
+        aspectRatio,
+        videoDuration,
+        videoAudio,
+      },
+      images: [],
+      status: "pending",
+      progress: 0,
+      action: "animate",
+      mediaType: "video",
+      styleId: styleId ?? options.styleId ?? get().activeStyleId,
+      referenceImageDataUrl,
+      createdAt: new Date().toISOString(),
+    };
+
+    set((s) => ({ jobs: [job, ...s.jobs], isGenerating: true }));
+    await saveGenerationJob(job);
+
+    const onUpdate = (updated: GenerationJob) => {
+      set((s) => ({ jobs: updateJobInList(s.jobs, updated) }));
+    };
+
+    await runGeneration(job, onUpdate);
+    set({ isGenerating: false });
+    return job.id;
+  },
+
   deleteJob: async (jobId) => {
     await deleteGenerationJob(jobId);
     set((s) => ({
       jobs: s.jobs.filter((j) => j.id !== jobId),
       selectedJobId: s.selectedJobId === jobId ? null : s.selectedJobId,
+      selectedAnimationId: s.selectedJobId === jobId ? null : s.selectedAnimationId,
     }));
   },
 }));

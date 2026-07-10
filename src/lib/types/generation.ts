@@ -43,17 +43,54 @@ export interface GeneratedImage {
 
 export type GenerationStatus = "pending" | "generating" | "complete" | "failed";
 
+export interface AnimateImageOptions {
+  motionPrompt?: string;
+  aspectRatio?: "9:16" | "16:9";
+  videoDuration?: VideoDuration;
+  videoAudio?: boolean;
+  styleId?: string | null;
+}
+
+export type AnimateTarget =
+  | {
+      type: "job";
+      jobId: string;
+      imageId: string;
+      previewUrl: string;
+      prompt?: string;
+      styleId?: string | null;
+    }
+  | {
+      type: "url";
+      imageUrl: string;
+      prompt?: string;
+      styleId?: string | null;
+    };
+
+export interface ImageAnimation {
+  id: string;
+  sourceImageId: string;
+  prompt: string;
+  styleId?: string | null;
+  settings: Pick<GenerationSettings, "aspectRatio" | "videoDuration" | "videoAudio">;
+  video?: GeneratedImage;
+  status: GenerationStatus;
+  error?: string;
+  createdAt: string;
+}
+
 export interface GenerationJob {
   id: string;
   prompt: string;
   settings: GenerationSettings;
   images: GeneratedImage[];
+  animations?: ImageAnimation[];
   status: GenerationStatus;
   progress: number;
   error?: string;
   parentJobId?: string;
   parentImageId?: string;
-  action?: "imagine" | "vary" | "upscale" | "reroll";
+  action?: "imagine" | "vary" | "upscale" | "reroll" | "animate";
   styleId?: string | null;
   mediaType?: GenerationMediaType;
   referenceImageDataUrl?: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import { EditorActionsMenu } from "@/components/editor/EditorActionsMenu";
 import type { EditorModule } from "@/lib/store/editorStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 
@@ -11,6 +12,7 @@ const MODULES: { id: EditorModule; label: string }[] = [
 export function LightroomToolbar() {
   const project = useEditorStore((s) => s.project);
   const editorModule = useEditorStore((s) => s.editorModule);
+  const showBefore = useEditorStore((s) => s.showBefore);
   const setEditorModule = useEditorStore((s) => s.setEditorModule);
   const setShowBefore = useEditorStore((s) => s.setShowBefore);
   const setShowExportModal = useEditorStore((s) => s.setShowExportModal);
@@ -76,15 +78,24 @@ export function LightroomToolbar() {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 160, justifyContent: "flex-end" }}>
+        <EditorActionsMenu />
         {isProcessing && <span style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>Processing…</span>}
         {editorModule === "edit" && (
           <>
             <button
-              onPointerDown={() => setShowBefore(true)}
-              onPointerUp={() => setShowBefore(false)}
-              onPointerLeave={() => setShowBefore(false)}
-              title="Hold to compare"
-              style={{ padding: "6px 12px", fontSize: 12, color: "var(--color-text-secondary)", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-panel)" }}
+              type="button"
+              onClick={() => setShowBefore(!showBefore)}
+              title="Compare original and edited side by side"
+              data-active={showBefore ? "true" : "false"}
+              className="lr-compare-btn"
+              style={{
+                padding: "6px 12px",
+                fontSize: 12,
+                color: showBefore ? "var(--color-accent)" : "var(--color-text-secondary)",
+                borderRadius: 8,
+                border: showBefore ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
+                background: showBefore ? "var(--color-accent-soft)" : "var(--color-surface-panel)",
+              }}
             >
               Compare
             </button>

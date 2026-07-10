@@ -5,11 +5,20 @@ import { useEffect, useRef, useState } from "react";
 interface ExplorePostActionsMenuProps {
   onCopyPrompt: () => void;
   onEditCopy: () => void;
+  onAnimate?: () => void;
   onDownload: () => void;
   copiedPrompt: boolean;
+  animateDisabled?: boolean;
 }
 
-export function ExplorePostActionsMenu({ onCopyPrompt, onEditCopy, onDownload, copiedPrompt }: ExplorePostActionsMenuProps) {
+export function ExplorePostActionsMenu({
+  onCopyPrompt,
+  onEditCopy,
+  onAnimate,
+  onDownload,
+  copiedPrompt,
+  animateDisabled = false,
+}: ExplorePostActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +58,11 @@ export function ExplorePostActionsMenu({ onCopyPrompt, onEditCopy, onDownload, c
           <button type="button" role="menuitem" onClick={() => run(onEditCopy)}>
             Edit copy in Lumina
           </button>
+          {onAnimate && (
+            <button type="button" role="menuitem" disabled={animateDisabled} onClick={() => run(onAnimate)}>
+              Animate image
+            </button>
+          )}
           <button type="button" role="menuitem" onClick={() => run(onDownload)}>
             Download
           </button>

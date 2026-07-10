@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { AppPageShell } from "@/components/layout/AppPageShell";
 import { CreatePromptBar } from "@/components/generate/CreatePromptBar";
 import { GenerationLightbox } from "@/components/generate/CreationFeed";
+import { AnimateImageModal } from "@/components/generate/AnimateImageModal";
 import { ExploreFilterBar } from "@/components/explore/ExploreFilterBar";
 import { ExploreGrid } from "@/components/explore/ExploreGrid";
 import { ExplorePostModal } from "@/components/explore/ExplorePostModal";
@@ -37,6 +38,7 @@ export function ExplorePageView() {
           <WelcomeAuthModal />
           <ExplorePostModal />
           <GenerationLightbox />
+          <AnimateImageModal />
         </>
       }
     >

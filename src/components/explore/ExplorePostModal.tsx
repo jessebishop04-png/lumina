@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStyleById } from "@/lib/constants/generationStyles";
 import { copyExplorePrompt, downloadExploreImage } from "@/lib/explore/exploreActions";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { useExploreStore } from "@/lib/store/exploreStore";
+import { useGenerationStore } from "@/lib/store/generationStore";
 import { ExplorePostActionsMenu } from "@/components/explore/ExplorePostActionsMenu";
 import { ModalPortal } from "@/components/layout/ModalPortal";
 
@@ -21,8 +22,18 @@ export function ExplorePostModal() {
   const toggleFollow = useExploreStore((s) => s.toggleFollow);
   const markPromptCopied = useExploreStore((s) => s.markPromptCopied);
   const addComment = useExploreStore((s) => s.addComment);
+  const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
+  const isGenerating = useGenerationStore((s) => s.isGenerating);
   const createProjectFromDataUrl = useEditorStore((s) => s.createProjectFromDataUrl);
   const [commentDraft, setCommentDraft] = useState("");
+  const [videoEnabled, setVideoEnabled] = useState(false);
+
+  useEffect(() => {
+    void fetch("/api/generate/status")
+      .then((r) => r.json())
+      .then((data: { videoGeneration?: boolean }) => setVideoEnabled(!!data.videoGeneration))
+      .catch(() => setVideoEnabled(false));
+  }, []);
 
   if (!selectedPostId) return null;
 
@@ -40,6 +51,16 @@ export function ExplorePostModal() {
     const projectId = await createProjectFromDataUrl(post.imageUrl, name);
     close();
     router.push(`/editor/${projectId}`);
+  };
+
+  const startAnimate = () => {
+    setAnimateTarget({
+      type: "url",
+      imageUrl: post.imageUrl,
+      prompt: post.prompt,
+      styleId: post.styleId ?? null,
+    });
+    close();
   };
 
   const submitComment = async () => {
@@ -160,11 +181,13 @@ export function ExplorePostModal() {
               </button>
               <ExplorePostActionsMenu
                 copiedPrompt={copiedPromptId === post.id}
+                animateDisabled={!videoEnabled || isGenerating}
                 onCopyPrompt={async () => {
                   const ok = await copyExplorePrompt(post.prompt);
                   if (ok) markPromptCopied(post.id);
                 }}
                 onEditCopy={() => void editCopy()}
+                onAnimate={videoEnabled ? () => startAnimate() : undefined}
                 onDownload={() => void downloadExploreImage(post.imageUrl, "lumina-explore.jpg")}
               />
               <button type="button" className="explore-modal-btn explore-modal-btn--ghost" onClick={close} style={{ marginLeft: "auto" }}>

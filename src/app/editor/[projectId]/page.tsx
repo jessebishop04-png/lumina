@@ -7,6 +7,7 @@ import { LightroomToolbar } from "@/components/editor/LightroomToolbar";
 import { DevelopPanel } from "@/components/editor/DevelopPanel";
 import { Filmstrip } from "@/components/editor/Filmstrip";
 import { ExportModal } from "@/components/editor/ExportModal";
+import { AnimateImageModal } from "@/components/generate/AnimateImageModal";
 import { EditCanvas } from "@/components/editor/EditCanvas";
 import { CropCanvas } from "@/components/editor/CropCanvas";
 import { ACCEPTED_IMAGE_EXTENSIONS, ACCEPTED_IMAGE_TYPES } from "@/lib/constants/exportPresets";
@@ -88,6 +89,7 @@ export default function EditorPage() {
       </div>
 
       {isReady && <ExportModal />}
+      {isReady && <AnimateImageModal />}
 
       <input
         ref={createFileRef}

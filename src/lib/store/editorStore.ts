@@ -875,6 +875,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isAdjusting: false,
       adjustingCount: 0,
       activePanel: module === "edit" ? "light" : get().activePanel,
+      showBefore: module === "edit" ? get().showBefore : false,
     });
   },
   setActivePanel: (panel) => set({ activePanel: panel }),

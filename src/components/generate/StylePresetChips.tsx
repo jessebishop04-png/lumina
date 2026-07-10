@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { GENERATION_STYLES } from "@/lib/constants/generationStyles";
+import type { GenerationStyle } from "@/lib/constants/generationStyles";
+import { PROMPT_BAR_STYLES } from "@/lib/constants/generationStyles";
 
 interface StylePresetChipsProps {
   activeStyleId: string | null;
   onToggle: (styleId: string) => void;
+  styles?: GenerationStyle[];
 }
 
-export function StylePresetChips({ activeStyleId, onToggle }: StylePresetChipsProps) {
+export function StylePresetChips({ activeStyleId, onToggle, styles = PROMPT_BAR_STYLES }: StylePresetChipsProps) {
   return (
     <div
       style={{
@@ -19,7 +21,7 @@ export function StylePresetChips({ activeStyleId, onToggle }: StylePresetChipsPr
         paddingBottom: 2,
       }}
     >
-      {GENERATION_STYLES.map((style) => {
+      {styles.map((style) => {
         const active = activeStyleId === style.id;
         return (
           <StyleChip key={style.id} style={style} active={active} onToggle={onToggle} />
@@ -34,7 +36,7 @@ function StyleChip({
   active,
   onToggle,
 }: {
-  style: (typeof GENERATION_STYLES)[number];
+  style: GenerationStyle;
   active: boolean;
   onToggle: (id: string) => void;
 }) {

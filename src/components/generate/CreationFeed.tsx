@@ -1,47 +1,79 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { GeneratedImage, GenerationJob } from "@/lib/types/generation";
+import type { GeneratedImage, GenerationJob, ImageAnimation } from "@/lib/types/generation";
 import { getStyleById } from "@/lib/constants/generationStyles";
 import { useGenerationStore } from "@/lib/store/generationStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { ModalPortal } from "@/components/layout/ModalPortal";
+import { MediaActionsMenu } from "@/components/generate/MediaActionsMenu";
+
+function downloadMedia(url: string, filename: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+}
 
 function MediaSlot({
   image,
   job,
   index,
+  aspectRatio = "1",
+  maxHeight,
   onSelect,
+  onGenerateVideo,
+  onDownload,
+  onEdit,
+  generateVideoDisabled,
 }: {
   image?: GeneratedImage;
   job: GenerationJob;
   index: number;
-  onSelect: () => void;
+  aspectRatio?: string;
+  maxHeight?: number;
+  onSelect?: () => void;
+  onGenerateVideo?: () => void;
+  onDownload?: () => void;
+  onEdit?: () => void;
+  generateVideoDisabled?: boolean;
 }) {
-  const isVideo = job.mediaType === "video";
+  const isVideo = image?.mediaType === "video";
   const isLoading = job.status === "generating" && !image;
   const filled = job.images.length;
   const showLoader = isLoading && index >= filled;
-  const aspectRatio = isVideo ? "9 / 16" : "1";
+  const hasMenu = image && (onDownload || onGenerateVideo || onEdit);
 
   return (
-    <button
-      type="button"
-      onClick={image ? onSelect : undefined}
+    <div
+      role={image && onSelect ? "button" : undefined}
+      tabIndex={image && onSelect ? 0 : undefined}
+      onClick={image && onSelect ? onSelect : undefined}
+      onKeyDown={
+        image && onSelect
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect();
+              }
+            }
+          : undefined
+      }
       style={{
         position: "relative",
         aspectRatio,
-        maxHeight: isVideo ? 420 : undefined,
+        maxHeight,
         borderRadius: 8,
         overflow: "hidden",
         border: "1px solid var(--color-border)",
         background: "var(--color-surface-input)",
         padding: 0,
-        cursor: image ? "pointer" : "default",
+        cursor: image && onSelect ? "pointer" : "default",
+        width: "100%",
       }}
     >
       {image ? (
-        image.mediaType === "video" || isVideo ? (
+        isVideo ? (
           <video
             src={image.url}
             muted
@@ -59,7 +91,98 @@ function MediaSlot({
           <div className="spinner" style={{ width: 20, height: 20 }} />
         </div>
       ) : null}
-    </button>
+      {hasMenu && (
+        <MediaActionsMenu
+          onGenerateVideo={onGenerateVideo}
+          onDownload={onDownload!}
+          onEdit={onEdit}
+          generateVideoDisabled={generateVideoDisabled}
+        />
+      )}
+    </div>
+  );
+}
+
+function AnimationSlot({
+  animation,
+  onSelect,
+  onDownload,
+}: {
+  animation: ImageAnimation;
+  onSelect?: () => void;
+  onDownload?: () => void;
+}) {
+  const aspectRatio = animation.settings.aspectRatio === "16:9" ? "16 / 9" : "9 / 16";
+  const style = getStyleById(animation.styleId ?? null);
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <div
+        style={{
+          fontSize: 10,
+          color: "var(--color-text-muted)",
+          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          flexWrap: "wrap",
+        }}
+      >
+        <span>▶ {animation.settings.aspectRatio} · {animation.settings.videoDuration}s</span>
+        {animation.status === "generating" && (
+          <span style={{ color: "var(--color-accent)" }}>Animating…</span>
+        )}
+        {animation.status === "failed" && (
+          <span style={{ color: "#e74c3c" }}>{animation.error ?? "Failed"}</span>
+        )}
+        {style && <span>· {style.label}</span>}
+      </div>
+      <div
+        role={animation.video && onSelect ? "button" : undefined}
+        tabIndex={animation.video && onSelect ? 0 : undefined}
+        onClick={animation.video && onSelect ? onSelect : undefined}
+        onKeyDown={
+          animation.video && onSelect
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSelect();
+                }
+              }
+            : undefined
+        }
+        style={{
+          position: "relative",
+          aspectRatio,
+          maxHeight: 220,
+          width: "100%",
+          borderRadius: 8,
+          overflow: "hidden",
+          border: "1px solid var(--color-accent-soft, var(--color-border))",
+          background: "var(--color-surface-input)",
+          padding: 0,
+          cursor: animation.video && onSelect ? "pointer" : "default",
+        }}
+      >
+        {animation.video ? (
+          <video
+            src={animation.video.url}
+            muted
+            loop
+            playsInline
+            autoPlay
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+          />
+        ) : animation.status === "generating" ? (
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="spinner" style={{ width: 20, height: 20 }} />
+          </div>
+        ) : null}
+        {animation.video && onDownload && (
+          <MediaActionsMenu onDownload={onDownload} />
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -92,11 +215,83 @@ function JobActions({ job }: { job: GenerationJob }) {
   );
 }
 
-export function GenerationJobCard({ job }: { job: GenerationJob }) {
+function ImageCell({
+  job,
+  image,
+  index,
+}: {
+  job: GenerationJob;
+  image?: GeneratedImage;
+  index: number;
+}) {
+  const router = useRouter();
   const setSelected = useGenerationStore((s) => s.setSelected);
+  const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
+  const isGenerating = useGenerationStore((s) => s.isGenerating);
+  const createProjectFromDataUrl = useEditorStore((s) => s.createProjectFromDataUrl);
+  const animations = (job.animations ?? []).filter((a) => image && a.sourceImageId === image.id);
+  const animating = animations.some((a) => a.status === "generating");
+  const isVideoCell = job.mediaType === "video" || image?.mediaType === "video";
+  const isImage = image && image.mediaType !== "video" && job.mediaType !== "video";
+
+  const openEditor = async () => {
+    if (!image || isVideoCell) return;
+    const name = job.prompt.slice(0, 40) || "AI Image";
+    const projectId = await createProjectFromDataUrl(image.url, name);
+    router.push(`/editor/${projectId}`);
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <MediaSlot
+        image={image}
+        job={job}
+        index={index}
+        aspectRatio={isVideoCell ? "9 / 16" : "1"}
+        maxHeight={isVideoCell ? 420 : undefined}
+        onSelect={image ? () => setSelected(job.id, image.id, null) : undefined}
+        onGenerateVideo={
+          isImage && job.status === "complete"
+            ? () =>
+                setAnimateTarget({
+                  type: "job",
+                  jobId: job.id,
+                  imageId: image.id,
+                  previewUrl: image.url,
+                  prompt: job.prompt,
+                  styleId: job.styleId ?? null,
+                })
+            : undefined
+        }
+        onDownload={
+          image
+            ? () => downloadMedia(image.url, isVideoCell ? "lumina-video.mp4" : "lumina-generation.png")
+            : undefined
+        }
+        onEdit={isImage && job.status === "complete" ? () => void openEditor() : undefined}
+        generateVideoDisabled={isGenerating || animating}
+      />
+      {animations.map((animation) => (
+        <AnimationSlot
+          key={animation.id}
+          animation={animation}
+          onSelect={() => animation.video && setSelected(job.id, image?.id ?? null, animation.id)}
+          onDownload={
+            animation.video
+              ? () => downloadMedia(animation.video!.url, "lumina-video.mp4")
+              : undefined
+          }
+        />
+      ))}
+    </div>
+  );
+}
+
+export function GenerationJobCard({ job }: { job: GenerationJob }) {
   const isVideo = job.mediaType === "video";
   const slots = isVideo || job.action === "upscale" ? 1 : 4;
   const style = getStyleById(job.styleId ?? null);
+  const animatingCount = (job.animations ?? []).filter((a) => a.status === "generating").length;
 
   return (
     <article style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-border-subtle)" }}>
@@ -109,7 +304,11 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
             <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
               {new Date(job.createdAt).toLocaleString()} · {isVideo ? "Video" : "Image"} · {job.settings.aspectRatio}
               {isVideo ? ` · ${job.settings.videoDuration ?? 4}s` : job.settings.draft ? " · Draft" : ""}
-              {!isVideo && job.action !== "imagine" ? ` · ${job.action}` : ""}
+              {isVideo && job.action === "animate"
+                ? " · From image"
+                : !isVideo && job.action && job.action !== "imagine"
+                  ? ` · ${job.action}`
+                  : ""}
               {style ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                   · {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -126,10 +325,15 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
                 ""
               )}
               {job.referenceImageDataUrl ? " · 🖼 Reference" : ""}
+              {animatingCount > 0 ? ` · ${animatingCount} animating` : ""}
             </span>
             {job.status === "generating" && (
               <span style={{ fontSize: 11, color: "var(--color-accent)" }}>
-                {isVideo ? "Generating video…" : `${job.progress}%`}
+                {isVideo
+                  ? job.action === "animate"
+                    ? "Animating image…"
+                    : "Generating video…"
+                  : `${job.progress}%`}
               </span>
             )}
             {job.status === "failed" && (
@@ -148,13 +352,7 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
           }}
         >
           {Array.from({ length: slots }).map((_, i) => (
-            <MediaSlot
-              key={i}
-              image={job.images[i]}
-              job={job}
-              index={i}
-              onSelect={() => setSelected(job.id, job.images[i]?.id ?? null)}
-            />
+            <ImageCell key={i} job={job} image={job.images[i]} index={i} />
           ))}
         </div>
 
@@ -214,21 +412,38 @@ export function GenerationLightbox() {
   const jobs = useGenerationStore((s) => s.jobs);
   const selectedJobId = useGenerationStore((s) => s.selectedJobId);
   const selectedImageId = useGenerationStore((s) => s.selectedImageId);
+  const selectedAnimationId = useGenerationStore((s) => s.selectedAnimationId);
   const setSelected = useGenerationStore((s) => s.setSelected);
+  const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
+  const isGenerating = useGenerationStore((s) => s.isGenerating);
   const createProjectFromDataUrl = useEditorStore((s) => s.createProjectFromDataUrl);
 
-  if (!selectedJobId || !selectedImageId) return null;
+  if (!selectedJobId) return null;
 
   const job = jobs.find((j) => j.id === selectedJobId);
-  const image = job?.images.find((i) => i.id === selectedImageId);
-  if (!job || !image) return null;
+  if (!job) return null;
 
-  const isVideo = job.mediaType === "video" || image.mediaType === "video";
-  const close = () => setSelected(null, null);
+  const animation = selectedAnimationId
+    ? (job.animations ?? []).find((a) => a.id === selectedAnimationId)
+    : undefined;
+  const image = animation?.video
+    ?? (selectedImageId ? job.images.find((i) => i.id === selectedImageId) : undefined);
+
+  if (!image) return null;
+
+  const isVideo = image.mediaType === "video" || !!animation;
+  const close = () => setSelected(null, null, null);
+
+  const sourceImage = selectedImageId ? job.images.find((i) => i.id === selectedImageId) : undefined;
+  const sourceAnimating = sourceImage
+    ? (job.animations ?? []).some((a) => a.sourceImageId === sourceImage.id && a.status === "generating")
+    : false;
 
   const openInEditor = async () => {
+    if (isVideo || !sourceImage) return;
     const name = job.prompt.slice(0, 40) || "AI Image";
-    const projectId = await createProjectFromDataUrl(image.url, name);
+    const projectId = await createProjectFromDataUrl(sourceImage.url, name);
+    close();
     router.push(`/editor/${projectId}`);
   };
 
@@ -255,81 +470,70 @@ export function GenerationLightbox() {
         }}
         onClick={close}
       >
-      <div
-        style={{
-          padding: "16px 24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          borderBottom: "1px solid var(--color-border-subtle)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {job.prompt}
-        </p>
-        <button type="button" onClick={close} style={{ ...btnStyle, marginLeft: 16 }}>
-          ✕
-        </button>
-      </div>
-
-      <div
-        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, minHeight: 0 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {isVideo ? (
-          <video
-            src={image.url}
-            controls
-            autoPlay
-            loop
-            playsInline
-            style={{ maxWidth: "100%", maxHeight: "calc(100vh - 180px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
-          />
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={image.url}
-            alt=""
-            style={{ maxWidth: "100%", maxHeight: "calc(100vh - 180px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
-          />
-        )}
-      </div>
-
-      <div
-        style={{
-          padding: "16px 24px",
-          display: "flex",
-          gap: 10,
-          justifyContent: "center",
-          flexWrap: "wrap",
-          borderTop: "1px solid var(--color-border-subtle)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            const a = document.createElement("a");
-            a.href = image.url;
-            a.download = isVideo ? "lumina-video.mp4" : "lumina-generation.png";
-            a.click();
+        <div
+          style={{
+            padding: "16px 24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid var(--color-border-subtle)",
+            position: "relative",
           }}
-          style={btnStyle}
+          onClick={(e) => e.stopPropagation()}
         >
-          Download
-        </button>
-        {!isVideo && (
-          <button
-            type="button"
-            onClick={() => void openInEditor()}
-            style={{ ...btnStyle, background: "var(--color-accent)", borderColor: "var(--color-accent)", color: "#fff" }}
-          >
-            Edit in Lumina
-          </button>
-        )}
+          <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {animation?.prompt ?? job.prompt}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 16 }}>
+            <MediaActionsMenu
+              overlay={false}
+              align="left"
+              onGenerateVideo={
+                !isVideo && sourceImage
+                  ? () =>
+                      setAnimateTarget({
+                        type: "job",
+                        jobId: job.id,
+                        imageId: sourceImage.id,
+                        previewUrl: sourceImage.url,
+                        prompt: job.prompt,
+                        styleId: job.styleId ?? null,
+                      })
+                  : undefined
+              }
+              onDownload={() => downloadMedia(image.url, isVideo ? "lumina-video.mp4" : "lumina-generation.png")}
+              onEdit={!isVideo && sourceImage ? () => void openInEditor() : undefined}
+              generateVideoDisabled={isGenerating || sourceAnimating}
+            />
+            <button type="button" onClick={close} style={btnStyle}>
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, minHeight: 0, overflowY: "auto" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isVideo ? (
+            <video
+              src={image.url}
+              controls
+              autoPlay
+              loop
+              playsInline
+              style={{ maxWidth: "100%", maxHeight: "calc(100vh - 120px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
+            />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={image.url}
+              alt=""
+              style={{ maxWidth: "100%", maxHeight: "calc(100vh - 120px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
+            />
+          )}
+        </div>
       </div>
-    </div>
     </ModalPortal>
   );
 }
