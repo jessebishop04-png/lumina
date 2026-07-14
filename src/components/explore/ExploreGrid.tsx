@@ -121,7 +121,6 @@ function ExploreTile({
         background: "var(--color-surface-input)",
       }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       {isVideo ? (
         <video
           src={post.imageUrl}
@@ -132,6 +131,7 @@ function ExploreTile({
           style={{ width: "100%", display: "block", objectFit: "cover", pointerEvents: "none", aspectRatio: "9 / 16" }}
         />
       ) : (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={post.thumbnailUrl || post.imageUrl}
           alt={post.prompt}
