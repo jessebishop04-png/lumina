@@ -7,13 +7,12 @@ interface AppPageShellProps {
   top: ReactNode;
   children: ReactNode;
   overlay?: ReactNode;
-  onUploadClick?: () => void;
 }
 
-export function AppPageShell({ top, children, overlay, onUploadClick }: AppPageShellProps) {
+export function AppPageShell({ top, children, overlay }: AppPageShellProps) {
   return (
     <div className="app-layout" style={{ display: "flex", height: "100vh", background: "var(--color-surface)", overflow: "hidden" }}>
-      <InstagramSidebar onCreateClick={onUploadClick} />
+      <InstagramSidebar />
 
       <main style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden" }}>
         <div className="app-top-bar">{top}</div>

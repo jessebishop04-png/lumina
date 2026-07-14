@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 interface ExplorePostActionsMenuProps {
   onCopyPrompt: () => void;
-  onEditCopy: () => void;
+  onEditCopy?: () => void;
   onAnimate?: () => void;
   onDownload: () => void;
   copiedPrompt: boolean;
@@ -55,9 +55,11 @@ export function ExplorePostActionsMenu({
           <button type="button" role="menuitem" onClick={() => run(onCopyPrompt)}>
             {copiedPrompt ? "Copied!" : "Copy prompt"}
           </button>
-          <button type="button" role="menuitem" onClick={() => run(onEditCopy)}>
-            Edit copy in Lumina
-          </button>
+          {onEditCopy && (
+            <button type="button" role="menuitem" onClick={() => run(onEditCopy)}>
+              Edit copy in Lumina
+            </button>
+          )}
           {onAnimate && (
             <button type="button" role="menuitem" disabled={animateDisabled} onClick={() => run(onAnimate)}>
               Animate image

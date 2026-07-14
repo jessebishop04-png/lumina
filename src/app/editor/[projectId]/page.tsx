@@ -56,7 +56,7 @@ export default function EditorPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "var(--color-surface)", overflow: "hidden" }}>
-      <InstagramSidebar onCreateClick={openCreate} />
+      <InstagramSidebar />
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <LightroomToolbar />

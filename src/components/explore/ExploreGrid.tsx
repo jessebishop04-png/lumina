@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import type { ExplorePostView } from "@/lib/types/explore";
+import { isExploreVideo } from "@/lib/explore/exploreMedia";
 import { getLocalProfile } from "@/lib/user/localProfile";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { useExploreStore } from "@/lib/store/exploreStore";
@@ -88,8 +89,10 @@ function ExploreTile({
   const createProjectFromDataUrl = useEditorStore((s) => s.createProjectFromDataUrl);
   const localProfile = getLocalProfile();
   const isOwnPost = localProfile?.id === post.creatorId;
+  const isVideo = isExploreVideo(post);
 
   const editCopy = async (e: React.MouseEvent) => {
+    if (isVideo) return;
     e.stopPropagation();
     const name = `${post.prompt.slice(0, 36) || "Explore image"} (copy)`;
     const projectId = await createProjectFromDataUrl(post.imageUrl, name);
@@ -119,13 +122,29 @@ function ExploreTile({
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={post.thumbnailUrl || post.imageUrl}
-        alt={post.prompt}
-        loading="lazy"
-        draggable={false}
-        style={{ width: "100%", display: "block", objectFit: "cover", pointerEvents: "none" }}
-      />
+      {isVideo ? (
+        <video
+          src={post.imageUrl}
+          muted
+          loop
+          playsInline
+          autoPlay
+          style={{ width: "100%", display: "block", objectFit: "cover", pointerEvents: "none", aspectRatio: "9 / 16" }}
+        />
+      ) : (
+        <img
+          src={post.thumbnailUrl || post.imageUrl}
+          alt={post.prompt}
+          loading="lazy"
+          draggable={false}
+          style={{ width: "100%", display: "block", objectFit: "cover", pointerEvents: "none" }}
+        />
+      )}
+      {isVideo && (
+        <span className="explore-tile-video-badge" aria-hidden>
+          ▶
+        </span>
+      )}
 
       <div className="explore-tile-overlay">
         <div className="explore-tile-actions" style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
@@ -181,9 +200,11 @@ function ExploreTile({
         <div className="explore-tile-actions">
           <p className="explore-tile-prompt">{post.prompt}</p>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, gap: 8 }}>
-            <button type="button" onClick={(e) => void editCopy(e)} style={overlayBtnStyle}>
-              Edit copy
-            </button>
+            {!isVideo && (
+              <button type="button" onClick={(e) => void editCopy(e)} style={overlayBtnStyle}>
+                Edit copy
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {

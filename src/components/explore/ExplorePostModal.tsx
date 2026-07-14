@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStyleById } from "@/lib/constants/generationStyles";
+import { isExploreVideo } from "@/lib/explore/exploreMedia";
 import { copyExplorePrompt, downloadExploreImage } from "@/lib/explore/exploreActions";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { useExploreStore } from "@/lib/store/exploreStore";
@@ -41,12 +42,14 @@ export function ExplorePostModal() {
   if (!post) return null;
 
   const style = getStyleById(post.styleId ?? null);
+  const isVideo = isExploreVideo(post);
   const close = () => {
     setCommentDraft("");
     setSelectedPost(null);
   };
 
   const editCopy = async () => {
+    if (isVideo) return;
     const name = `${post.prompt.slice(0, 36) || "Explore image"} (copy)`;
     const projectId = await createProjectFromDataUrl(post.imageUrl, name);
     close();
@@ -74,8 +77,19 @@ export function ExplorePostModal() {
       <div className="explore-modal-backdrop" onClick={close}>
         <div className="explore-modal-panel" onClick={(e) => e.stopPropagation()}>
           <div className="explore-modal-image-wrap">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={post.imageUrl} alt={post.prompt} className="explore-modal-image" />
+            {isVideo ? (
+              <video
+                src={post.imageUrl}
+                controls
+                autoPlay
+                loop
+                playsInline
+                className="explore-modal-image explore-modal-video"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={post.imageUrl} alt={post.prompt} className="explore-modal-image" />
+            )}
           </div>
 
           <aside className="explore-modal-sidebar">
@@ -181,14 +195,14 @@ export function ExplorePostModal() {
               </button>
               <ExplorePostActionsMenu
                 copiedPrompt={copiedPromptId === post.id}
-                animateDisabled={!videoEnabled || isGenerating}
+                animateDisabled={!videoEnabled || isGenerating || isVideo}
                 onCopyPrompt={async () => {
                   const ok = await copyExplorePrompt(post.prompt);
                   if (ok) markPromptCopied(post.id);
                 }}
-                onEditCopy={() => void editCopy()}
-                onAnimate={videoEnabled ? () => startAnimate() : undefined}
-                onDownload={() => void downloadExploreImage(post.imageUrl, "lumina-explore.jpg")}
+                onEditCopy={!isVideo ? () => void editCopy() : undefined}
+                onAnimate={videoEnabled && !isVideo ? () => startAnimate() : undefined}
+                onDownload={() => void downloadExploreImage(post.imageUrl, isVideo ? "lumina-explore.mp4" : "lumina-explore.jpg")}
               />
               <button type="button" className="explore-modal-btn explore-modal-btn--ghost" onClick={close} style={{ marginLeft: "auto" }}>
                 Close

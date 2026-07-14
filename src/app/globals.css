@@ -897,8 +897,52 @@ input[type="range"]::-moz-range-thumb {
 }
 .create-prompt-styles {
   border-top: 1px solid var(--color-border-subtle);
-  padding: 8px 0 2px;
-  margin-top: 8px;
+  padding: 6px 0 0;
+  margin-top: 6px;
+}
+.style-preset-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  overflow: hidden;
+}
+.style-preset-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 3px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-panel);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.style-preset-chip.is-active {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+.style-preset-chip-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  box-sizing: border-box;
+  background: var(--color-surface-input);
+}
+.style-preset-chip.is-active .style-preset-chip-thumb {
+  border-color: var(--color-accent);
+}
+.style-preset-chip-fallback {
+  width: 24px;
+  text-align: center;
+  font-size: 12px;
 }
 .create-prompt-ref-slot {
   position: relative;
@@ -1077,8 +1121,29 @@ input[type="range"]::-moz-range-thumb {
 }
 .create-prompt-styles--flat {
   border-top: 1px solid var(--color-border-subtle);
-  padding: 8px 0 2px;
-  margin-top: 8px;
+  padding: 6px 0 0;
+  margin-top: 6px;
+}
+.explore-tile-video-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.explore-modal-video {
+  max-height: 100%;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
 }
 .explore-filter-bar--flat {
   display: flex;

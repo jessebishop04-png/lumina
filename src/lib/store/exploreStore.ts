@@ -147,11 +147,27 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
             imageUrl: image.url,
             prompt: job.prompt,
             styleId: job.styleId,
+            mediaType: image.mediaType ?? "image",
             source: "generate",
             sourceKey: `gen:${job.id}:${image.id}`,
           });
         } catch (err) {
           console.warn("Skipped explore publish for generation image:", err);
+        }
+      }
+      for (const animation of job.animations ?? []) {
+        if (animation.status !== "complete" || !animation.video) continue;
+        try {
+          await publishToExplore({
+            imageUrl: animation.video.url,
+            prompt: animation.prompt,
+            styleId: animation.styleId ?? job.styleId,
+            mediaType: "video",
+            source: "generate",
+            sourceKey: `gen:${job.id}:anim:${animation.id}`,
+          });
+        } catch (err) {
+          console.warn("Skipped explore publish for animation video:", err);
         }
       }
     }

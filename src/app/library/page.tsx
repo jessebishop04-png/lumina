@@ -8,7 +8,7 @@ export default function LibraryPage() {
 
   return (
     <div style={{ display: "flex", height: "100vh", background: "var(--color-surface)", overflow: "hidden" }}>
-      <InstagramSidebar onCreateClick={openUpload} />
+      <InstagramSidebar />
       <LibraryGrid fileRef={fileRef} />
       {uploadInput}
       {uploadingOverlay}

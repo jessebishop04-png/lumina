@@ -4,6 +4,7 @@ export interface ExplorePost {
   thumbnailUrl: string;
   prompt: string;
   styleId?: string | null;
+  mediaType?: "image" | "video";
   creatorId: string;
   creatorUsername: string;
   creatorDisplayName: string;

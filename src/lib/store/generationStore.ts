@@ -103,6 +103,20 @@ async function runVideoGeneration(
     const complete = { ...current, status: "complete" as const, progress: 100, images };
     onUpdate(complete);
     await saveGenerationJob(complete);
+
+    for (const video of images) {
+      void publishToExplore({
+        imageUrl: video.url,
+        prompt: job.prompt,
+        styleId: job.styleId,
+        mediaType: "video",
+        source: "generate",
+        sourceKey: `gen:${job.id}:${video.id}`,
+      }).then((post) => {
+        if (post) notifyExploreNewPost(post);
+      });
+    }
+
     return complete;
   } catch (err) {
     const failed = {
@@ -229,6 +243,20 @@ async function runInPlaceAnimation(
       mediaType: "video",
     };
     patchAnimation({ status: "complete", video });
+
+    const job = getJob();
+    if (job && video) {
+      void publishToExplore({
+        imageUrl: video.url,
+        prompt: animation.prompt,
+        styleId: animation.styleId ?? job.styleId,
+        mediaType: "video",
+        source: "generate",
+        sourceKey: `gen:${jobId}:anim:${animation.id}`,
+      }).then((post) => {
+        if (post) notifyExploreNewPost(post);
+      });
+    }
   } catch (err) {
     patchAnimation({
       status: "failed",
