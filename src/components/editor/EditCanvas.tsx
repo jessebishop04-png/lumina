@@ -39,10 +39,28 @@ export function EditCanvas() {
   if (!activeImage) {
     return (
       <div
-        className="lr-canvas-bg"
+        className="lr-canvas-bg editor-canvas-empty"
         style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <p style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>Select a photo to edit</p>
+      </div>
+    );
+  }
+
+  if (activeImage.mediaType === "video") {
+    return (
+      <div
+        className="lr-canvas-bg editor-canvas-video"
+        style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+      >
+        <video
+          src={activeImage.originalDataUrl}
+          controls
+          autoPlay
+          loop
+          playsInline
+          style={{ maxWidth: "100%", maxHeight: "100%", borderRadius: 4 }}
+        />
       </div>
     );
   }

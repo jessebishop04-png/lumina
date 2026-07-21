@@ -29,6 +29,7 @@ export const DEFAULT_CROP: CropRect = { x: 0, y: 0, width: 1, height: 1 };
 export interface ProjectImage {
   id: string;
   name: string;
+  mediaType?: "image" | "video";
   originalDataUrl: string;
   thumbnailDataUrl: string;
   previewDataUrl?: string;
@@ -64,6 +65,12 @@ export interface ProjectSummary {
   thumbnailDataUrl: string | null;
   previewDataUrl?: string | null;
   imageCount: number;
+  /** Cover media type for the library tile */
+  mediaType?: "image" | "video";
+  /** Project contains at least one video */
+  hasVideo?: boolean;
+  /** Project contains at least one photo */
+  hasPhoto?: boolean;
 }
 
 export interface ExportSettings {

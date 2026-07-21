@@ -28,6 +28,7 @@ import {
   fileToDataUrl,
   loadImageFromDataUrl,
   resetAdjustments,
+  cancelImageProcessing,
 } from "@/lib/image/imageProcessor";
 import {
   addRecentProject,
@@ -39,6 +40,14 @@ import {
 import { publishToExplore } from "@/lib/explore/publishToExplore";
 import { notifyExploreNewPost } from "@/lib/store/exploreStore";
 import type { ProjectSummary } from "@/lib/types";
+import {
+  applySnapshotToImage,
+  recordSnapshot,
+  redoHistory,
+  snapshotFromImage,
+  undoHistory,
+  type ImageHistoryStacks,
+} from "@/lib/store/editHistory";
 
 export type EditorModule = "edit" | "crop";
 
@@ -66,6 +75,7 @@ interface EditorState {
   imagineSourceImageId: string | null;
   imagineSourceImageName: string | null;
   imagineError: string | null;
+  editHistoryByImage: Record<string, ImageHistoryStacks>;
 
   loadRecentProjects: () => Promise<void>;
   loadProject: (id: string) => Promise<void>;
@@ -101,6 +111,7 @@ interface EditorState {
   renameProject: (name: string) => void;
   renameImage: (imageId: string, name: string) => void;
   deleteProjectById: (id: string) => Promise<void>;
+  deleteProjectsByIds: (ids: string[]) => Promise<void>;
   setShowBefore: (show: boolean) => void;
   setShowExportModal: (show: boolean) => void;
   setEditorModule: (module: EditorModule) => void;
@@ -111,7 +122,10 @@ interface EditorState {
   setIsProcessing: (processing: boolean) => void;
   beginAdjusting: () => void;
   endAdjusting: () => void;
+  undoEdit: () => void;
+  redoEdit: () => void;
   persistProject: () => Promise<void>;
+  saveProjectNow: () => Promise<void>;
 }
 
 function defaultImagineState(): ImagineEditState {
@@ -155,6 +169,16 @@ async function createProjectImageFromUrl(name: string, url: string): Promise<Pro
   return createProjectImage(name, dataUrl, thumbnailDataUrl, previewDataUrl);
 }
 
+async function createProjectVideoFromUrl(
+  name: string,
+  videoUrl: string,
+  thumbnailDataUrl: string
+): Promise<ProjectImage> {
+  const dataUrl = await ensureDataUrl(videoUrl);
+  const image = createProjectImage(name, dataUrl, thumbnailDataUrl, thumbnailDataUrl);
+  return { ...image, mediaType: "video" };
+}
+
 function createProjectImage(
   name: string,
   originalDataUrl: string,
@@ -191,7 +215,12 @@ export function normalizeProjectImage(img: ProjectImage): ProjectImage {
     maskDataUrl: img.maskDataUrl ?? null,
     studio: img.studio ?? { ...DEFAULT_STUDIO_STATE },
     studioResults: img.studioResults ?? [],
-    imagine: img.imagine ?? defaultImagineState(),
+    imagine: {
+      ...defaultImagineState(),
+      ...img.imagine,
+      mediaType: img.imagine?.mediaType ?? "image",
+      settings: { ...defaultImagineState().settings, ...img.imagine?.settings },
+    },
     imagineResults: img.imagineResults ?? [],
     previewDataUrl: img.previewDataUrl ?? img.thumbnailDataUrl ?? undefined,
     referenceMediaUrl: img.referenceMediaUrl ?? null,
@@ -208,6 +237,20 @@ function normalizeProject(project: Project): Project {
 function getActiveImage(project: Project | null): ProjectImage | null {
   if (!project || !project.activeImageId) return null;
   return project.images.find((img) => img.id === project.activeImageId) ?? null;
+}
+
+function isEditableImage(image: ProjectImage | null): image is ProjectImage {
+  return !!image && image.mediaType !== "video";
+}
+
+function recordActiveImageHistory(state: Pick<EditorState, "project" | "editHistoryByImage">): Record<string, ImageHistoryStacks> {
+  const activeImage = getActiveImage(state.project);
+  if (!isEditableImage(activeImage)) return state.editHistoryByImage;
+  return recordSnapshot(
+    state.editHistoryByImage,
+    activeImage.id,
+    snapshotFromImage(activeImage)
+  );
 }
 
 const defaultExportSettings: ExportSettings = {
@@ -246,6 +289,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   imagineSourceImageId: null,
   imagineSourceImageName: null,
   imagineError: null,
+  editHistoryByImage: {},
 
   loadRecentProjects: async () => {
     let summaries = await getProjectSummaries();
@@ -284,6 +328,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         project,
         isLoading: false,
         processedImageUrl: null,
+        editHistoryByImage: {},
         canvasView: { zoom: 1, panX: 0, panY: 0, fitToScreen: true },
       });
     } else {
@@ -323,8 +368,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   createProjectFromDataUrl: async (dataUrl: string, name = "AI Generation") => {
-    const { thumbnailDataUrl, previewDataUrl } = await createImageThumbnails(dataUrl);
-    const image = createProjectImage(`${name}.png`, dataUrl, thumbnailDataUrl, previewDataUrl);
+    const resolvedUrl = await ensureDataUrl(dataUrl);
+    const { thumbnailDataUrl, previewDataUrl } = await createImageThumbnails(resolvedUrl);
+    const image = createProjectImage(`${name}.png`, resolvedUrl, thumbnailDataUrl, previewDataUrl);
     const now = new Date().toISOString();
 
     const project: Project = {
@@ -443,13 +489,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   resetAdjustment: (key: AdjustmentKey) => {
+    const state = get();
+    if (!isEditableImage(getActiveImage(state.project))) return;
+    set({ editHistoryByImage: recordActiveImageHistory(state) });
     get().updateAdjustment(key, DEFAULT_ADJUSTMENTS[key]);
   },
 
   resetAllAdjustments: () => {
-    const { project } = get();
+    const state = get();
+    const { project } = state;
     const activeImage = getActiveImage(project);
-    if (!project || !activeImage) return;
+    if (!project || !isEditableImage(activeImage)) return;
+
+    set({ editHistoryByImage: recordActiveImageHistory(state) });
 
     const updatedImages = project.images.map((img) =>
       img.id === activeImage.id
@@ -469,9 +521,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   applySuggestion: (adjustments: Partial<EditAdjustments>) => {
-    const { project } = get();
+    const state = get();
+    const { project } = state;
     const activeImage = getActiveImage(project);
-    if (!project || !activeImage) return;
+    if (!project || !isEditableImage(activeImage)) return;
+
+    set({ editHistoryByImage: recordActiveImageHistory(state) });
 
     const updatedImages = project.images.map((img) =>
       img.id === activeImage.id
@@ -487,9 +542,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   rotateImage: (degrees: number) => {
-    const { project } = get();
+    const state = get();
+    const { project } = state;
     const activeImage = getActiveImage(project);
-    if (!project || !activeImage) return;
+    if (!project || !isEditableImage(activeImage)) return;
+
+    set({ editHistoryByImage: recordActiveImageHistory(state) });
 
     const updatedImages = project.images.map((img) =>
       img.id === activeImage.id
@@ -508,9 +566,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setCrop: (crop: CropRect) => {
-    const { project } = get();
+    const state = get();
+    const { project } = state;
     const activeImage = getActiveImage(project);
-    if (!project || !activeImage) return;
+    if (!project || !isEditableImage(activeImage)) return;
+    if (JSON.stringify(activeImage.crop) === JSON.stringify(crop)) return;
+
+    set({ editHistoryByImage: recordActiveImageHistory(state) });
 
     const updatedImages = project.images.map((img) =>
       img.id === activeImage.id
@@ -671,6 +733,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!project || !activeImage) return;
 
     const imagine = activeImage.imagine ?? defaultImagineState();
+    const nextMediaType = partial.mediaType ?? imagine.mediaType;
+    const nextSettings = partial.settings ? { ...imagine.settings, ...partial.settings } : { ...imagine.settings };
+    if (partial.mediaType === "video" && nextSettings.aspectRatio !== "9:16" && nextSettings.aspectRatio !== "16:9") {
+      nextSettings.aspectRatio = "9:16";
+    }
+
     const updatedImages = project.images.map((img) =>
       img.id === activeImage.id
         ? {
@@ -678,7 +746,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             imagine: {
               ...imagine,
               ...partial,
-              settings: partial.settings ? { ...imagine.settings, ...partial.settings } : imagine.settings,
+              mediaType: nextMediaType,
+              settings: nextSettings,
             },
             updatedAt: new Date().toISOString(),
           }
@@ -711,10 +780,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const sourceImageId = activeImage.id;
     const sourceImageName = activeImage.name;
-    const sourceBaseName = sourceImageName.replace(/ \(AI.*\)$/, "");
+    const sourceBaseName = sourceImageName.replace(/ \(AI.*\)$/, "").replace(/ \(clip\)$/i, "");
     const generationSettings = { ...imagine.settings };
     const styleId = imagine.activeStyleId;
     const projectId = project.id;
+    const isVideo = imagine.mediaType === "video";
 
     set({
       imagineGenerating: true,
@@ -725,6 +795,72 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     try {
       const referenceImageDataUrl = await resolveReferenceForGeneration(activeImage);
+
+      if (isVideo) {
+        const res = await fetch("/api/generate/video", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            settings: generationSettings,
+            styleId,
+            referenceImageDataUrl,
+          }),
+        });
+
+        let data: { error?: string; video?: { url: string } };
+        try {
+          data = await res.json();
+        } catch {
+          throw new Error(
+            res.ok
+              ? "Video generation failed — invalid server response"
+              : `Server error (${res.status}). Try restarting the dev server with npm run dev:clean.`
+          );
+        }
+        if (!res.ok) throw new Error(data.error ?? `Video generation failed (${res.status})`);
+        if (!data.video?.url) throw new Error("No video returned");
+
+        const newVideo = await createProjectVideoFromUrl(
+          `${sourceBaseName} (clip)`,
+          data.video.url,
+          activeImage.thumbnailDataUrl
+        );
+
+        void publishToExplore({
+          imageUrl: newVideo.originalDataUrl,
+          prompt,
+          styleId,
+          source: "editor",
+          sourceKey: `editor:${projectId}:${newVideo.id}`,
+          mediaType: "video",
+        }).then((post) => {
+          if (post) notifyExploreNewPost(post);
+        });
+
+        const latestProject = get().project;
+        if (!latestProject) return;
+
+        const images = insertImagesAfter(latestProject.images, sourceImageId, [newVideo]);
+        const userStayedOnSource = latestProject.activeImageId === sourceImageId;
+
+        set({
+          project: {
+            ...latestProject,
+            images,
+            activeImageId: userStayedOnSource ? newVideo.id : latestProject.activeImageId,
+            updatedAt: new Date().toISOString(),
+          },
+          ...(userStayedOnSource
+            ? {
+                processedImageUrl: null,
+                canvasView: { zoom: 1, panX: 0, panY: 0, fitToScreen: true },
+              }
+            : {}),
+        });
+        await get().persistProject();
+        return;
+      }
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -867,6 +1003,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  deleteProjectsByIds: async (ids: string[]) => {
+    if (ids.length === 0) return;
+    await Promise.all(ids.map((id) => deleteStoredProject(id)));
+    const projects = await getProjectSummaries();
+    const { project } = get();
+    set({
+      recentProjects: projects,
+      ...(project && ids.includes(project.id) ? { project: null, processedImageUrl: null } : {}),
+    });
+  },
+
   setShowBefore: (show) => set({ showBefore: show }),
   setShowExportModal: (show) => set({ showExportModal: show }),
   setEditorModule: (module) => {
@@ -885,16 +1032,70 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => ({ exportSettings: { ...state.exportSettings, ...settings } })),
   setProcessedImageUrl: (url) => set({ processedImageUrl: url }),
   setIsProcessing: (processing) => set({ isProcessing: processing }),
-  beginAdjusting: () =>
+  beginAdjusting: () => {
+    cancelImageProcessing();
     set((state) => {
       const count = state.adjustingCount + 1;
-      return { adjustingCount: count, isAdjusting: true };
-    }),
+      const editHistoryByImage =
+        count === 1 ? recordActiveImageHistory(state) : state.editHistoryByImage;
+      return { adjustingCount: count, isAdjusting: true, isProcessing: false, editHistoryByImage };
+    });
+  },
   endAdjusting: () =>
     set((state) => {
       const count = Math.max(0, state.adjustingCount - 1);
       return { adjustingCount: count, isAdjusting: count > 0 };
     }),
+
+  undoEdit: () => {
+    const state = get();
+    const { project, editHistoryByImage } = state;
+    const activeImage = getActiveImage(project);
+    if (!project || !isEditableImage(activeImage)) return;
+
+    const { historyByImage, snapshot } = undoHistory(
+      editHistoryByImage,
+      activeImage.id,
+      snapshotFromImage(activeImage)
+    );
+    if (!snapshot) return;
+
+    const updatedImages = project.images.map((img) =>
+      img.id === activeImage.id ? applySnapshotToImage(img, snapshot) : img
+    );
+
+    set({
+      project: { ...project, images: updatedImages, updatedAt: new Date().toISOString() },
+      editHistoryByImage: historyByImage,
+      processedImageUrl: null,
+    });
+    void get().persistProject();
+  },
+
+  redoEdit: () => {
+    const state = get();
+    const { project, editHistoryByImage } = state;
+    const activeImage = getActiveImage(project);
+    if (!project || !isEditableImage(activeImage)) return;
+
+    const { historyByImage, snapshot } = redoHistory(
+      editHistoryByImage,
+      activeImage.id,
+      snapshotFromImage(activeImage)
+    );
+    if (!snapshot) return;
+
+    const updatedImages = project.images.map((img) =>
+      img.id === activeImage.id ? applySnapshotToImage(img, snapshot) : img
+    );
+
+    set({
+      project: { ...project, images: updatedImages, updatedAt: new Date().toISOString() },
+      editHistoryByImage: historyByImage,
+      processedImageUrl: null,
+    });
+    void get().persistProject();
+  },
 
   persistProject: async () => {
     const { project } = get();
@@ -915,6 +1116,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         resolve();
       }, 400);
     });
+  },
+
+  saveProjectNow: async () => {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = null;
+    const { project } = get();
+    if (!project) return;
+    await saveProject(project);
+    const projects = await getProjectSummaries();
+    set({ recentProjects: projects });
   },
 }));
 

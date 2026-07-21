@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { DM_Sans, Space_Grotesk } from "next/font/google";
+import { DialRoot } from "dialkit";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { PageTransitionShell } from "@/components/layout/PageTransitionShell";
+import "dialkit/styles.css";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -35,8 +38,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ height: "100%", margin: 0 }}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <PageTransitionShell>{children}</PageTransitionShell>
+          </AuthProvider>
         </ThemeProvider>
+        <DialRoot />
       </body>
     </html>
   );

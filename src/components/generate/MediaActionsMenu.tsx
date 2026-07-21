@@ -51,7 +51,7 @@ export function MediaActionsMenu({
     >
       <button
         type="button"
-        className="media-actions-trigger"
+        className={`media-actions-trigger${overlay ? "" : " media-actions-trigger--toolbar"}`}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Image actions"

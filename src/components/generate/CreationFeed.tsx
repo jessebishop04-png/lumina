@@ -1,5 +1,8 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
+import { useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { GeneratedImage, GenerationJob, ImageAnimation } from "@/lib/types/generation";
 import { getStyleById } from "@/lib/constants/generationStyles";
@@ -7,6 +10,8 @@ import { useGenerationStore } from "@/lib/store/generationStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 import { ModalPortal } from "@/components/layout/ModalPortal";
 import { MediaActionsMenu } from "@/components/generate/MediaActionsMenu";
+
+gsap.registerPlugin(useGSAP);
 
 function downloadMedia(url: string, filename: string) {
   const a = document.createElement("a");
@@ -417,6 +422,80 @@ export function GenerationLightbox() {
   const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
   const isGenerating = useGenerationStore((s) => s.isGenerating);
   const createProjectFromDataUrl = useEditorStore((s) => s.createProjectFromDataUrl);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const mediaRef = useRef<HTMLImageElement | HTMLVideoElement>(null);
+  const isClosingRef = useRef(false);
+
+  const finishClose = useCallback(() => {
+    isClosingRef.current = false;
+    setSelected(null, null, null);
+  }, [setSelected]);
+
+  const runCloseAnimation = useCallback(() => {
+    const backdrop = backdropRef.current;
+    const shell = shellRef.current;
+    const media = mediaRef.current;
+
+    const completeClose = () => {
+      requestAnimationFrame(() => finishClose());
+    };
+
+    if (!backdrop || !shell) {
+      completeClose();
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      completeClose();
+      return;
+    }
+
+    const tl = gsap.timeline({ defaults: { ease: "power2.in" }, onComplete: completeClose });
+    if (media) {
+      tl.to(media, { opacity: 0, scale: 0.98, duration: 0.22 }, 0);
+    }
+    tl.to(shell, { opacity: 0, scale: 0.97, y: 10, duration: 0.28 }, media ? 0.04 : 0).to(
+      backdrop,
+      { opacity: 0, duration: 0.24 },
+      "-=0.12",
+    );
+  }, [finishClose]);
+
+  useGSAP(
+    () => {
+      if (isClosingRef.current) return;
+
+      const backdrop = backdropRef.current;
+      const shell = shellRef.current;
+      const media = mediaRef.current;
+      if (!backdrop || !shell) return;
+
+      const mm = gsap.matchMedia();
+
+      mm.add("(prefers-reduced-motion: reduce)", () => {
+        gsap.set([backdrop, shell, media], { opacity: 1, scale: 1, y: 0 });
+      });
+
+      mm.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.set(backdrop, { opacity: 0 });
+        gsap.set(shell, { opacity: 0, scale: 0.96, y: 14 });
+        if (media) gsap.set(media, { opacity: 0, scale: 0.98 });
+
+        gsap
+          .timeline({ defaults: { ease: "power3.out" } })
+          .to(backdrop, { opacity: 1, duration: 0.32 })
+          .to(shell, { opacity: 1, scale: 1, y: 0, duration: 0.48 }, "-=0.18")
+          .to(media, { opacity: 1, scale: 1, duration: 0.4 }, "-=0.3");
+      });
+
+      return () => mm.revert();
+    },
+    {
+      scope: backdropRef,
+      dependencies: [selectedJobId, selectedImageId, selectedAnimationId],
+    },
+  );
 
   if (!selectedJobId) return null;
 
@@ -432,7 +511,12 @@ export function GenerationLightbox() {
   if (!image) return null;
 
   const isVideo = image.mediaType === "video" || !!animation;
-  const close = () => setSelected(null, null, null);
+
+  const close = () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+    runCloseAnimation();
+  };
 
   const sourceImage = selectedImageId ? job.images.find((i) => i.id === selectedImageId) : undefined;
   const sourceAnimating = sourceImage
@@ -447,91 +531,55 @@ export function GenerationLightbox() {
     router.push(`/editor/${projectId}`);
   };
 
-  const btnStyle: React.CSSProperties = {
-    padding: "10px 18px",
-    fontSize: 13,
-    fontWeight: 600,
-    borderRadius: 10,
-    border: "1px solid var(--color-border)",
-    background: "var(--color-surface-panel)",
-    color: "var(--color-text-primary)",
-  };
-
   return (
     <ModalPortal>
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 100,
-          background: "rgba(0,0,0,0.92)",
-          display: "flex",
-          flexDirection: "column",
-        }}
-        onClick={close}
-      >
-        <div
-          style={{
-            padding: "16px 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            borderBottom: "1px solid var(--color-border-subtle)",
-            position: "relative",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p style={{ fontSize: 13, color: "var(--color-text-secondary)", margin: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {animation?.prompt ?? job.prompt}
-          </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: 16 }}>
-            <MediaActionsMenu
-              overlay={false}
-              align="left"
-              onGenerateVideo={
-                !isVideo && sourceImage
-                  ? () =>
-                      setAnimateTarget({
-                        type: "job",
-                        jobId: job.id,
-                        imageId: sourceImage.id,
-                        previewUrl: sourceImage.url,
-                        prompt: job.prompt,
-                        styleId: job.styleId ?? null,
-                      })
-                  : undefined
-              }
-              onDownload={() => downloadMedia(image.url, isVideo ? "lumina-video.mp4" : "lumina-generation.png")}
-              onEdit={!isVideo && sourceImage ? () => void openInEditor() : undefined}
-              generateVideoDisabled={isGenerating || sourceAnimating}
-            />
-            <button type="button" onClick={close} style={btnStyle}>
-              ✕
-            </button>
-          </div>
-        </div>
+      <div ref={backdropRef} className="gen-lightbox-backdrop" onClick={close}>
+        <div ref={shellRef} className="gen-lightbox-shell" onClick={(e) => e.stopPropagation()}>
+          <header className="gen-lightbox-header">
+            <p className="gen-lightbox-prompt">{animation?.prompt ?? job.prompt}</p>
+            <div className="gen-lightbox-header-actions">
+              <MediaActionsMenu
+                overlay={false}
+                align="left"
+                onGenerateVideo={
+                  !isVideo && sourceImage
+                    ? () =>
+                        setAnimateTarget({
+                          type: "job",
+                          jobId: job.id,
+                          imageId: sourceImage.id,
+                          previewUrl: sourceImage.url,
+                          prompt: job.prompt,
+                          styleId: job.styleId ?? null,
+                        })
+                    : undefined
+                }
+                onDownload={() => downloadMedia(image.url, isVideo ? "lumina-video.mp4" : "lumina-generation.png")}
+                onEdit={!isVideo && sourceImage ? () => void openInEditor() : undefined}
+                generateVideoDisabled={isGenerating || sourceAnimating}
+              />
+              <button type="button" className="gen-lightbox-close-btn" onClick={close} aria-label="Close">
+                ✕
+              </button>
+            </div>
+          </header>
 
-        <div
-          style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, minHeight: 0, overflowY: "auto" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {isVideo ? (
-            <video
-              src={image.url}
-              controls
-              autoPlay
-              loop
-              playsInline
-              style={{ maxWidth: "100%", maxHeight: "calc(100vh - 120px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={image.url}
-              alt=""
-              style={{ maxWidth: "100%", maxHeight: "calc(100vh - 120px)", borderRadius: 8, boxShadow: "0 8px 40px var(--color-shadow)" }}
-            />
-          )}
+          <div className="gen-lightbox-body">
+            {isVideo ? (
+              <video
+                ref={mediaRef as React.RefObject<HTMLVideoElement>}
+                src={image.url}
+                controls
+                autoPlay
+                loop
+                playsInline
+                className="gen-lightbox-media"
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img ref={mediaRef as React.RefObject<HTMLImageElement>} src={image.url} alt="" className="gen-lightbox-media" />
+            )}
+          </div>
         </div>
       </div>
     </ModalPortal>

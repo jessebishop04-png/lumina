@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectImage } from "@/lib/types";
 import { DEFAULT_CROP } from "@/lib/types";
 import { hasActiveEdits } from "@/lib/constants/adjustments";
-import { renderAdjustedImage } from "@/lib/image/imageProcessor";
+import {
+  LIVE_PREVIEW_MAX,
+  renderAdjustedImage,
+  renderAdjustedImageLive,
+  tryRenderAdjustedImageLive,
+  warmPreviewSource,
+} from "@/lib/image/imageProcessor";
 import { useEditorStore } from "@/lib/store/editorStore";
 
-const LIVE_DEBOUNCE_MS = 50;
-const IDLE_DEBOUNCE_MS = 150;
+const IDLE_DEBOUNCE_MS = 80;
 const PREVIEW_MAX = 640;
 
 function needsRender(image: ProjectImage): boolean {
@@ -25,6 +30,83 @@ export function useAdjustedImage(activeImage: ProjectImage | null, showBefore: b
   const [displayUrl, setDisplayUrl] = useState<string | null>(null);
   const generationRef = useRef(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageRef = useRef(activeImage);
+  const adjustingRef = useRef(isAdjusting);
+
+  imageRef.current = activeImage;
+  adjustingRef.current = isAdjusting;
+
+  const sourceKey = activeImage
+    ? `${activeImage.id}:${activeImage.rotation}:${JSON.stringify(activeImage.crop)}`
+    : null;
+
+  useEffect(() => {
+    if (!activeImage || showBefore) return;
+    void warmPreviewSource(
+      activeImage.originalDataUrl,
+      activeImage.rotation,
+      activeImage.crop,
+      LIVE_PREVIEW_MAX
+    );
+  }, [activeImage, sourceKey, showBefore]);
+
+  const runWorkerRender = useCallback(() => {
+    const image = imageRef.current;
+    if (!image || !needsRender(image)) return;
+
+    const generation = ++generationRef.current;
+    setIsProcessing(true);
+
+    renderAdjustedImage(image.originalDataUrl, image.edits, image.enabledEdits, {
+      maxDimension: PREVIEW_MAX,
+      skipDetail: false,
+      mimeType: "image/jpeg",
+      quality: 0.85,
+      rotation: image.rotation,
+      crop: image.crop,
+      maskDataUrl: image.maskDataUrl,
+    })
+      .then((url) => {
+        if (generation === generationRef.current) setDisplayUrl(url);
+      })
+      .catch(() => {
+        // keep previous frame
+      })
+      .finally(() => {
+        if (generation === generationRef.current) setIsProcessing(false);
+      });
+  }, [setIsProcessing]);
+
+  const runLiveRender = useCallback(() => {
+    const image = imageRef.current;
+    if (!image || !needsRender(image)) return;
+
+    const liveUrl = tryRenderAdjustedImageLive(image.originalDataUrl, image.edits, image.enabledEdits, {
+      maxDimension: LIVE_PREVIEW_MAX,
+      rotation: image.rotation,
+      crop: image.crop,
+      maskDataUrl: image.maskDataUrl,
+    });
+
+    if (liveUrl) {
+      setDisplayUrl(liveUrl);
+      return;
+    }
+
+    const generation = ++generationRef.current;
+    void renderAdjustedImageLive(image.originalDataUrl, image.edits, image.enabledEdits, {
+      maxDimension: LIVE_PREVIEW_MAX,
+      rotation: image.rotation,
+      crop: image.crop,
+      maskDataUrl: image.maskDataUrl,
+    })
+      .then((url) => {
+        if (generation === generationRef.current) setDisplayUrl(url);
+      })
+      .catch(() => {
+        // keep previous frame
+      });
+  }, []);
 
   const renderKey = activeImage
     ? JSON.stringify({
@@ -49,37 +131,30 @@ export function useAdjustedImage(activeImage: ProjectImage | null, showBefore: b
       return;
     }
 
-    const generation = ++generationRef.current;
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    const delay = isAdjusting ? LIVE_DEBOUNCE_MS : IDLE_DEBOUNCE_MS;
+    if (isAdjusting) {
+      runLiveRender();
+      return;
+    }
 
     debounceRef.current = setTimeout(() => {
-      setIsProcessing(true);
-      renderAdjustedImage(activeImage.originalDataUrl, activeImage.edits, activeImage.enabledEdits, {
-        maxDimension: PREVIEW_MAX,
-        skipDetail: isAdjusting,
-        mimeType: "image/jpeg",
-        quality: isAdjusting ? 0.78 : 0.85,
-        rotation: activeImage.rotation,
-        crop: activeImage.crop,
-        maskDataUrl: activeImage.maskDataUrl,
-      })
-        .then((url) => {
-          if (generation === generationRef.current) setDisplayUrl(url);
-        })
-        .catch(() => {
-          // keep previous frame
-        })
-        .finally(() => {
-          if (generation === generationRef.current) setIsProcessing(false);
-        });
-    }, delay);
+      debounceRef.current = null;
+      runWorkerRender();
+    }, IDLE_DEBOUNCE_MS);
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [activeImage, renderKey, showBefore, isAdjusting, setIsProcessing]);
+  }, [
+    activeImage,
+    renderKey,
+    showBefore,
+    isAdjusting,
+    setIsProcessing,
+    runLiveRender,
+    runWorkerRender,
+  ]);
 
   return displayUrl;
 }

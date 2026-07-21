@@ -10,6 +10,7 @@ import { useExploreStore } from "@/lib/store/exploreStore";
 export function ExploreGrid({ embedded = false }: { embedded?: boolean }) {
   const posts = useExploreStore((s) => s.posts);
   const filterTab = useExploreStore((s) => s.filterTab);
+  const mediaFilter = useExploreStore((s) => s.mediaFilter);
   const isLoading = useExploreStore((s) => s.isLoading);
   const setSelectedPost = useExploreStore((s) => s.setSelectedPost);
   const toggleLike = useExploreStore((s) => s.toggleLike);
@@ -28,16 +29,34 @@ export function ExploreGrid({ embedded = false }: { embedded?: boolean }) {
   }
 
   if (posts.length === 0) {
+    const emptyTitle =
+      filterTab === "liked"
+        ? mediaFilter === "videos"
+          ? "No liked videos yet"
+          : mediaFilter === "photos"
+            ? "No liked photos yet"
+            : "No liked items yet"
+        : mediaFilter === "videos"
+          ? "No videos to explore yet"
+          : mediaFilter === "photos"
+            ? "No photos to explore yet"
+            : "Nothing to explore yet";
+
+    const emptyDesc =
+      filterTab === "liked"
+        ? "Tap the heart on any post to save it here."
+        : mediaFilter === "videos"
+          ? "Generate a video with the prompt above — it appears here automatically."
+          : "Generate with the prompt above — images appear here automatically.";
+
     return (
       <div style={centerStyle}>
         <div style={{ textAlign: "center", maxWidth: 420 }}>
           <p style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 600, margin: "0 0 8px" }}>
-            {filterTab === "liked" ? "No liked images yet" : "Nothing to explore yet"}
+            {emptyTitle}
           </p>
           <p style={{ fontSize: 14, color: "var(--color-text-secondary)", lineHeight: 1.6, margin: 0 }}>
-            {filterTab === "liked"
-              ? "Tap the heart on any image to save it here."
-              : "Generate with the prompt above — images appear here automatically."}
+            {emptyDesc}
           </p>
         </div>
       </div>
@@ -45,8 +64,8 @@ export function ExploreGrid({ embedded = false }: { embedded?: boolean }) {
   }
 
   return (
-    <div style={embedded ? { padding: "8px 12px 32px" } : { flex: 1, overflowY: "auto", padding: "8px 12px 32px" }}>
-      <div style={{ columnCount: 3, columnGap: 6, maxWidth: "none", margin: "0 auto" }}>
+    <div className={`explore-grid${embedded ? " explore-grid--embedded" : ""}`}>
+      <div className="explore-grid-inner">
         {posts.map((post) => (
           <ExploreTile
             key={post.id}
@@ -207,6 +226,7 @@ function ExploreTile({
             )}
             <button
               type="button"
+              className="explore-tile-like-btn"
               onClick={(e) => {
                 e.stopPropagation();
                 onLike();

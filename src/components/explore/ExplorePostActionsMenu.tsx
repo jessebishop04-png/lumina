@@ -9,6 +9,17 @@ interface ExplorePostActionsMenuProps {
   onDownload: () => void;
   copiedPrompt: boolean;
   animateDisabled?: boolean;
+  variant?: "default" | "header";
+}
+
+function DotsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+      <circle cx="3" cy="9" r="1.5" fill="currentColor" />
+      <circle cx="9" cy="9" r="1.5" fill="currentColor" />
+      <circle cx="15" cy="9" r="1.5" fill="currentColor" />
+    </svg>
+  );
 }
 
 export function ExplorePostActionsMenu({
@@ -18,6 +29,7 @@ export function ExplorePostActionsMenu({
   onDownload,
   copiedPrompt,
   animateDisabled = false,
+  variant = "default",
 }: ExplorePostActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -38,20 +50,22 @@ export function ExplorePostActionsMenu({
     action();
   };
 
+  const isHeader = variant === "header";
+
   return (
-    <div ref={rootRef} className="explore-actions-menu" style={{ position: "relative" }}>
+    <div ref={rootRef} className={`explore-actions-menu${isHeader ? " explore-actions-menu--header" : ""}`}>
       <button
         type="button"
-        className="explore-modal-btn"
+        className={isHeader ? "explore-modal-menu-btn" : "explore-modal-btn"}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Actions"
         onClick={() => setOpen((v) => !v)}
       >
-        ⋯
+        {isHeader ? <DotsIcon /> : "⋯"}
       </button>
       {open && (
-        <div className="explore-actions-dropdown" role="menu">
+        <div className={`explore-actions-dropdown${isHeader ? " explore-actions-dropdown--header" : ""}`} role="menu">
           <button type="button" role="menuitem" onClick={() => run(onCopyPrompt)}>
             {copiedPrompt ? "Copied!" : "Copy prompt"}
           </button>

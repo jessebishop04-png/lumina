@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
-import type { ExplorePost, ExplorePostView, ExploreComment } from "@/lib/types/explore";
+import type { ExplorePost, ExplorePostView, ExploreComment, ExploreCommentView } from "@/lib/types/explore";
 import { EXPLORE_CATALOG_VERSION } from "@/lib/explore/exploreCatalog";
 import { buildCatalogExplorePosts } from "@/lib/explore/exploreSeed";
 import { getGenerationJobs } from "@/lib/storage/generationStorage";
@@ -13,12 +13,15 @@ import {
   saveExploreComment,
   setFollowedCreatorIds,
   setLikedPostIds,
+  toggleCommentLikeInStorage,
   updateExplorePost,
 } from "@/lib/storage/exploreStorage";
 import { publishToExplore } from "@/lib/explore/publishToExplore";
 import { requireLocalProfile } from "@/lib/user/localProfile";
 
 import type { ExploreFilter } from "@/lib/types/explore";
+import type { LibraryMediaFilter } from "@/lib/library/libraryFilters";
+import { isExploreVideo } from "@/lib/explore/exploreMedia";
 
 const CATALOG_STORAGE_KEY = "lumina-explore-catalog-version";
 
@@ -26,19 +29,22 @@ interface ExploreState {
   posts: ExplorePostView[];
   allPosts: ExplorePostView[];
   filterTab: ExploreFilter;
+  mediaFilter: LibraryMediaFilter;
   isLoading: boolean;
   selectedPostId: string | null;
   copiedPromptId: string | null;
-  postComments: ExploreComment[];
+  postComments: ExploreCommentView[];
 
   loadExplore: () => Promise<void>;
   syncFromGenerations: () => Promise<void>;
   setFilterTab: (tab: ExploreFilter) => void;
+  setMediaFilter: (filter: LibraryMediaFilter) => void;
   toggleLike: (postId: string) => Promise<void>;
   toggleFollow: (creatorId: string) => Promise<void>;
   setSelectedPost: (postId: string | null) => void;
   loadPostComments: (postId: string) => void;
-  addComment: (postId: string, text: string) => Promise<void>;
+  addComment: (postId: string, text: string, parentId?: string | null) => Promise<void>;
+  toggleCommentLike: (postId: string, commentId: string) => Promise<void>;
   markPromptCopied: (postId: string) => void;
 }
 
@@ -95,10 +101,25 @@ async function ensureCatalogPosts(): Promise<ExplorePost[]> {
   return posts;
 }
 
+function applyExploreFilters(
+  posts: ExplorePostView[],
+  filterTab: ExploreFilter,
+  mediaFilter: LibraryMediaFilter,
+): ExplorePostView[] {
+  let filtered = posts;
+  if (mediaFilter === "photos") {
+    filtered = filtered.filter((p) => !isExploreVideo(p));
+  } else if (mediaFilter === "videos") {
+    filtered = filtered.filter((p) => isExploreVideo(p));
+  }
+  return applyFilter(filtered, filterTab);
+}
+
 export const useExploreStore = create<ExploreState>((set, get) => ({
   posts: [],
   allPosts: [],
   filterTab: "popular",
+  mediaFilter: "all",
   isLoading: false,
   selectedPostId: null,
   copiedPromptId: null,
@@ -109,12 +130,12 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
     try {
       const posts = await ensureCatalogPosts();
       const enriched = enrichPosts(posts);
-      set({ allPosts: enriched, posts: applyFilter(enriched, get().filterTab) });
+      set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
     } catch (err) {
       console.error("Failed to load explore:", err);
       const catalog = buildCatalogExplorePosts();
       const enriched = enrichPosts(catalog);
-      set({ allPosts: enriched, posts: applyFilter(enriched, get().filterTab) });
+      set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
     } finally {
       set({ isLoading: false });
     }
@@ -125,7 +146,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
         const posts = await getExplorePosts();
         if (posts.length === 0) return;
         const enriched = enrichPosts(posts);
-        set({ allPosts: enriched, posts: applyFilter(enriched, get().filterTab) });
+        set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
       })
       .catch((err) => console.warn("Explore generation sync skipped:", err));
   },
@@ -133,7 +154,14 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   setFilterTab: (tab) => {
     set((state) => ({
       filterTab: tab,
-      posts: applyFilter(state.allPosts, tab),
+      posts: applyExploreFilters(state.allPosts, tab, state.mediaFilter),
+    }));
+  },
+
+  setMediaFilter: (filter) => {
+    set((state) => ({
+      mediaFilter: filter,
+      posts: applyExploreFilters(state.allPosts, state.filterTab, filter),
     }));
   },
 
@@ -202,7 +230,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
       );
       return {
         allPosts,
-        posts: applyFilter(allPosts, state.filterTab),
+        posts: applyExploreFilters(allPosts, state.filterTab, state.mediaFilter),
       };
     });
   },
@@ -237,7 +265,7 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
     set({ postComments: getCommentsForPost(postId) });
   },
 
-  addComment: async (postId, text) => {
+  addComment: async (postId, text, parentId = null) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -251,11 +279,30 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
       authorAvatarUrl: profile.avatarUrl,
       text: trimmed,
       createdAt: new Date().toISOString(),
+      parentId: parentId ?? null,
+      likeCount: 0,
     };
 
     saveExploreComment(comment);
+    const view: ExploreCommentView = {
+      ...comment,
+      parentId: comment.parentId ?? null,
+      likeCount: 0,
+      likedByMe: false,
+    };
     set((state) => ({
-      postComments: [comment, ...state.postComments.filter((c) => c.id !== comment.id)],
+      postComments: [view, ...state.postComments.filter((c) => c.id !== comment.id)],
+    }));
+  },
+
+  toggleCommentLike: async (postId, commentId) => {
+    const result = toggleCommentLikeInStorage(commentId, postId);
+    if (!result) return;
+
+    set((state) => ({
+      postComments: state.postComments.map((c) =>
+        c.id === commentId ? { ...c, likeCount: result.likeCount, likedByMe: result.likedByMe } : c
+      ),
     }));
   },
 
@@ -284,7 +331,7 @@ export function notifyExploreNewPost(post: ExplorePost): void {
     const allPosts = sortPosts([view, ...state.allPosts]);
     return {
       allPosts,
-      posts: applyFilter(allPosts, state.filterTab),
+      posts: applyExploreFilters(allPosts, state.filterTab, state.mediaFilter),
     };
   });
 }

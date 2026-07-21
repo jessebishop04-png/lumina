@@ -30,7 +30,21 @@ export interface ExploreComment {
   authorAvatarUrl: string;
   text: string;
   createdAt: string;
+  /** null or undefined = top-level comment */
+  parentId?: string | null;
+  likeCount?: number;
 }
+
+export interface ExploreCommentView extends ExploreComment {
+  parentId: string | null;
+  likeCount: number;
+  likedByMe: boolean;
+}
+
+export type ExploreCommentThread = ExploreCommentView & {
+  replies: ExploreCommentView[];
+  replyCount: number;
+};
 
 export type ExploreFilter = "popular" | "liked";
 

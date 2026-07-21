@@ -1,6 +1,9 @@
 "use client";
 
-import { EditorActionsMenu } from "@/components/editor/EditorActionsMenu";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import type { ReactNode } from "react";
+import { canRedoHistory, canUndoHistory, getHistoryStacks } from "@/lib/store/editHistory";
 import type { EditorModule } from "@/lib/store/editorStore";
 import { useEditorStore } from "@/lib/store/editorStore";
 
@@ -9,67 +12,144 @@ const MODULES: { id: EditorModule; label: string }[] = [
   { id: "crop", label: "Crop & Rotate" },
 ];
 
+function ToolbarIconButton({
+  title,
+  active,
+  disabled,
+  onClick,
+  children,
+}: {
+  title: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`editor-toolbar-icon${active ? " is-active" : ""}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function CompareIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+      <rect x="3" y="5" width="8" height="14" rx="1.5" />
+      <rect x="13" y="5" width="8" height="14" rx="1.5" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </svg>
+  );
+}
+
+function SaveIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <path d="M17 21v-8H7v8" />
+      <path d="M7 3v5h8" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 16V4" />
+      <path d="m7 9 5-5 5 5" />
+      <path d="M4 20h16" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
 export function LightroomToolbar() {
+  const router = useRouter();
   const project = useEditorStore((s) => s.project);
   const editorModule = useEditorStore((s) => s.editorModule);
   const showBefore = useEditorStore((s) => s.showBefore);
+  const editHistoryByImage = useEditorStore((s) => s.editHistoryByImage);
   const setEditorModule = useEditorStore((s) => s.setEditorModule);
   const setShowBefore = useEditorStore((s) => s.setShowBefore);
   const setShowExportModal = useEditorStore((s) => s.setShowExportModal);
-  const resetAllAdjustments = useEditorStore((s) => s.resetAllAdjustments);
-  const persistProject = useEditorStore((s) => s.persistProject);
+  const undoEdit = useEditorStore((s) => s.undoEdit);
+  const redoEdit = useEditorStore((s) => s.redoEdit);
+  const saveProjectNow = useEditorStore((s) => s.saveProjectNow);
   const isProcessing = useEditorStore((s) => s.isProcessing);
+  const isAdjusting = useEditorStore((s) => s.isAdjusting);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const activeImageId = project?.activeImageId ?? null;
+  const isVideo = project?.images.find((img) => img.id === activeImageId)?.mediaType === "video";
+  const historyStacks = activeImageId ? getHistoryStacks(editHistoryByImage, activeImageId) : { past: [], future: [] };
+  const canUndo = canUndoHistory(historyStacks);
+  const canRedo = canRedoHistory(historyStacks);
+
+  const handleCompare = () => {
+    if (editorModule !== "edit") {
+      setEditorModule("edit");
+      setShowBefore(true);
+      return;
+    }
+    setShowBefore(!showBefore);
+  };
+
+  const handleSave = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      await saveProjectNow();
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <header
-      style={{
-        height: 52,
-        minHeight: 52,
-        background: "var(--color-surface-panel)",
-        borderBottom: "1px solid var(--color-border)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 24px",
-        flexShrink: 0,
-      }}
-    >
-      <div style={{ minWidth: 160 }}>
-        <span style={{ fontFamily: "var(--font-display)", fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>
-          {project?.name ?? "Project"}
-        </span>
+    <header className="editor-toolbar">
+      <div className="editor-toolbar-filename" title={project?.name ?? "Project"}>
+        {project?.name ?? "Project"}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", flex: 1, justifyContent: "center", minWidth: 0, padding: "0 12px" }}>
-        <div
-          style={{
-            display: "flex",
-            maxWidth: "100%",
-            overflowX: "auto",
-            background: "var(--color-module-track)",
-            borderRadius: 20,
-            padding: 3,
-            gap: 2,
-            scrollbarWidth: "none",
-          }}
-        >
+      <div className="editor-toolbar-modules">
+        <div className="editor-module-track">
           {MODULES.map((mod) => (
             <button
               key={mod.id}
               type="button"
               onClick={() => setEditorModule(mod.id)}
               className={editorModule === mod.id ? "lr-module-active" : "lr-module-inactive"}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 18,
-                fontSize: 13,
-                fontWeight: 500,
-                border: "none",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-              }}
             >
               {mod.label}
             </button>
@@ -77,53 +157,35 @@ export function LightroomToolbar() {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 160, justifyContent: "flex-end" }}>
-        <EditorActionsMenu />
-        {isProcessing && <span style={{ fontSize: 11, color: "var(--color-text-secondary)" }}>Processing…</span>}
-        {editorModule === "edit" && (
-          <>
-            <button
-              type="button"
-              onClick={() => setShowBefore(!showBefore)}
-              title="Compare original and edited side by side"
-              data-active={showBefore ? "true" : "false"}
-              className="lr-compare-btn"
-              style={{
-                padding: "6px 12px",
-                fontSize: 12,
-                color: showBefore ? "var(--color-accent)" : "var(--color-text-secondary)",
-                borderRadius: 8,
-                border: showBefore ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-                background: showBefore ? "var(--color-accent-soft)" : "var(--color-surface-panel)",
-              }}
-            >
-              Compare
-            </button>
-            <button
-              onClick={() => {
-                resetAllAdjustments();
-                persistProject();
-              }}
-              style={{ padding: "6px 12px", fontSize: 12, color: "var(--color-text-secondary)", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-panel)" }}
-            >
-              Reset
-            </button>
-          </>
+      <div className="editor-toolbar-actions">
+        {isProcessing && !isAdjusting && (
+          <span className="editor-toolbar-status">Processing…</span>
         )}
-        <button
-          type="button"
-          onClick={() => setShowExportModal(true)}
-          style={{
-            padding: "7px 16px",
-            fontSize: 13,
-            fontWeight: 600,
-            background: "var(--color-accent)",
-            color: "#fff",
-            borderRadius: 8,
-          }}
-        >
-          Export
-        </button>
+        {!isVideo && (
+          <ToolbarIconButton
+            title="Compare before and after"
+            active={showBefore && editorModule === "edit"}
+            onClick={handleCompare}
+          >
+            <CompareIcon />
+          </ToolbarIconButton>
+        )}
+        <ToolbarIconButton title="Undo" disabled={!canUndo || isVideo} onClick={undoEdit}>
+          <UndoIcon />
+        </ToolbarIconButton>
+        <ToolbarIconButton title="Redo" disabled={!canRedo || isVideo} onClick={redoEdit}>
+          <RedoIcon />
+        </ToolbarIconButton>
+        <ToolbarIconButton title="Save project" disabled={isSaving} onClick={() => void handleSave()}>
+          <SaveIcon />
+        </ToolbarIconButton>
+        <div className="editor-toolbar-divider" aria-hidden />
+        <ToolbarIconButton title="Export" onClick={() => setShowExportModal(true)}>
+          <ExportIcon />
+        </ToolbarIconButton>
+        <ToolbarIconButton title="Close editor" onClick={() => router.push("/library")}>
+          <CloseIcon />
+        </ToolbarIconButton>
       </div>
     </header>
   );

@@ -38,6 +38,7 @@ export function CropPanel() {
   const setCrop = useEditorStore((s) => s.setCrop);
   const resetCrop = useEditorStore((s) => s.resetCrop);
   const persistProject = useEditorStore((s) => s.persistProject);
+  const setEditorModule = useEditorStore((s) => s.setEditorModule);
 
   if (!activeImage) {
     return <p style={{ textAlign: "center", color: "var(--color-text-secondary)", fontSize: 13, padding: 32 }}>Select a photo</p>;
@@ -55,7 +56,23 @@ export function CropPanel() {
   };
 
   return (
-    <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="editor-crop-panel">
+      <button
+        type="button"
+        className="editor-crop-apply-btn"
+        onClick={() => {
+          void persistProject();
+          setEditorModule("edit");
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+          <path d="M6 3h12l3 3v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z" />
+          <path d="M6 8h12" />
+          <path d="M9 12h6" />
+        </svg>
+        Crop
+      </button>
+
       <div>
         <p style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-text-secondary)", marginBottom: 10 }}>
           Rotate

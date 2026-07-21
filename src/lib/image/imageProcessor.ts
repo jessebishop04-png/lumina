@@ -1,7 +1,7 @@
 import type { AdjustmentKey, CropRect, EditAdjustments } from "@/lib/types";
 import { DEFAULT_ADJUSTMENTS, DEFAULT_CROP } from "@/lib/types";
 import { applyAdjustmentsToBuffer } from "./adjustmentsCore";
-import { cancelPendingWorkerJobs, processImageInWorker } from "./imageWorkerClient";
+import { cancelPendingWorkerJobs, processImageInWorker, processImageOnMainThread } from "./imageWorkerClient";
 import {
   compositeWithMask,
   getTransformedImageData,
@@ -19,6 +19,7 @@ export interface RenderOptions {
 }
 
 const PREVIEW_MAX = 640;
+export const LIVE_PREVIEW_MAX = 384;
 const imageElementCache = new Map<string, Promise<HTMLImageElement>>();
 const previewDataCache = new Map<string, ImageData>();
 let outputCanvas: HTMLCanvasElement | null = null;
@@ -79,6 +80,72 @@ function imageDataToDataUrl(
   if (!ctx) throw new Error("Could not get canvas context");
   ctx.putImageData(imageData, 0, 0);
   return outputCanvas.toDataURL(mimeType, mimeType === "image/jpeg" ? quality : undefined);
+}
+
+function previewCacheKey(
+  dataUrl: string,
+  maxDimension: number,
+  rotation = 0,
+  crop = DEFAULT_CROP
+): string {
+  return `${dataUrl}@${maxDimension}@${rotation}@${JSON.stringify(crop)}`;
+}
+
+function getCachedPreviewSource(
+  dataUrl: string,
+  maxDimension: number,
+  rotation = 0,
+  crop = DEFAULT_CROP
+): ImageData | null {
+  return previewDataCache.get(previewCacheKey(dataUrl, maxDimension, rotation, crop)) ?? null;
+}
+
+export function warmPreviewSource(
+  dataUrl: string,
+  rotation = 0,
+  crop = DEFAULT_CROP,
+  maxDimension = LIVE_PREVIEW_MAX
+): Promise<ImageData> {
+  return getSourceImageData(dataUrl, maxDimension, rotation, crop);
+}
+
+/** Instant preview while dragging sliders — main thread, no worker queue. */
+export function tryRenderAdjustedImageLive(
+  originalDataUrl: string,
+  edits: EditAdjustments,
+  enabledEdits: Record<AdjustmentKey, boolean>,
+  options: RenderOptions = {}
+): string | null {
+  const maxDimension = options.maxDimension ?? LIVE_PREVIEW_MAX;
+  const rotation = options.rotation ?? 0;
+  const crop = options.crop ?? DEFAULT_CROP;
+  if (options.maskDataUrl) return null;
+
+  const source = getCachedPreviewSource(originalDataUrl, maxDimension, rotation, crop);
+  if (!source) return null;
+
+  const adjusted = processImageOnMainThread(source, edits, enabledEdits, true);
+  return imageDataToDataUrl(adjusted, options.mimeType ?? "image/jpeg", options.quality ?? 0.72);
+}
+
+export async function renderAdjustedImageLive(
+  originalDataUrl: string,
+  edits: EditAdjustments,
+  enabledEdits: Record<AdjustmentKey, boolean>,
+  options: RenderOptions = {}
+): Promise<string> {
+  const maxDimension = options.maxDimension ?? LIVE_PREVIEW_MAX;
+  const rotation = options.rotation ?? 0;
+  const crop = options.crop ?? DEFAULT_CROP;
+  const maskDataUrl = options.maskDataUrl ?? null;
+
+  const source = await getSourceImageData(originalDataUrl, maxDimension, rotation, crop);
+  let result = processImageOnMainThread(source, edits, enabledEdits, true);
+  if (maskDataUrl) {
+    const mask = await loadMaskImageData(maskDataUrl, source.width, source.height);
+    result = compositeWithMask(source, result, mask);
+  }
+  return imageDataToDataUrl(result, options.mimeType ?? "image/jpeg", options.quality ?? 0.72);
 }
 
 export function clearImageCache(dataUrl?: string): void {

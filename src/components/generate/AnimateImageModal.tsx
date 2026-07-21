@@ -2,9 +2,12 @@
 
 import { ModalPortal } from "@/components/layout/ModalPortal";
 import { AnimateImagePanel } from "@/components/generate/AnimateImagePanel";
+import { animateImageModalDialStyles } from "@/lib/dials/animateImageModalDialStyles";
+import { useAnimateImageModalDials } from "@/lib/dials/useAnimateImageModalDials";
 import { useGenerationStore } from "@/lib/store/generationStore";
 
 export function AnimateImageModal() {
+  const dials = useAnimateImageModalDials();
   const animateTarget = useGenerationStore((s) => s.animateTarget);
   const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
   const animateImage = useGenerationStore((s) => s.animateImage);
@@ -33,7 +36,11 @@ export function AnimateImageModal() {
 
   return (
     <ModalPortal>
-      <div className="animate-image-modal-backdrop" onClick={close}>
+      <div
+        className="animate-image-modal-backdrop animate-image-modal-root"
+        style={animateImageModalDialStyles(dials)}
+        onClick={close}
+      >
         <div className="animate-image-modal-panel" onClick={(e) => e.stopPropagation()}>
           <div className="animate-image-modal-header">
             <p className="animate-image-modal-title">Generate video</p>

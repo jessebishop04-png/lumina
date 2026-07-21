@@ -1,11 +1,18 @@
 "use client";
 
+import { useGSAP } from "@gsap/react";
+import gsap from "gsap";
 import { useEffect, useRef, useState } from "react";
-import { ASPECT_RATIO_OPTIONS } from "@/lib/types/generation";
+import { GenerationSettingsFields } from "@/components/generate/GenerationSettingsFields";
 import { StylePresetChips } from "@/components/generate/StylePresetChips";
+import { ALL_STYLES } from "@/lib/constants/generationStyles";
 import { useImageDrop } from "@/lib/hooks/useImageDrop";
+import { promptBoxDialStyles } from "@/lib/dials/promptBoxDialStyles";
+import { usePromptBoxDials } from "@/lib/dials/usePromptBoxDials";
 import { useGenerationStore } from "@/lib/store/generationStore";
 import { useAuthStore } from "@/lib/store/authStore";
+
+gsap.registerPlugin(useGSAP);
 
 interface CreatePromptBarProps {
   sticky?: boolean;
@@ -15,6 +22,7 @@ interface CreatePromptBarProps {
 }
 
 export function CreatePromptBar({ sticky = true, showHint = true, wide = false, variant = "default" }: CreatePromptBarProps) {
+  const dials = usePromptBoxDials();
   const prompt = useGenerationStore((s) => s.prompt);
   const setPrompt = useGenerationStore((s) => s.setPrompt);
   const settings = useGenerationStore((s) => s.settings);
@@ -28,8 +36,11 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
   const activeStyleId = useGenerationStore((s) => s.activeStyleId);
   const toggleStyle = useGenerationStore((s) => s.toggleStyle);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsRendered, setSettingsRendered] = useState(false);
   const [referenceImg2img, setReferenceImg2img] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void fetch("/api/generate/status")
@@ -39,6 +50,50 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
       })
       .catch(() => setReferenceImg2img(false));
   }, []);
+
+  useEffect(() => {
+    if (showSettings) setSettingsRendered(true);
+  }, [showSettings]);
+
+  useGSAP(
+    () => {
+      const el = settingsRef.current;
+      if (!el || !settingsRendered) return;
+
+      const mm = gsap.matchMedia();
+
+      if (showSettings) {
+        mm.add("(prefers-reduced-motion: reduce)", () => {
+          gsap.set(el, { opacity: 1, y: 0 });
+        });
+
+        mm.add("(prefers-reduced-motion: no-preference)", () => {
+          gsap.fromTo(
+            el,
+            { opacity: 0, y: 16 },
+            { opacity: 1, y: 0, duration: 0.58, ease: "power1.out" },
+          );
+        });
+      } else {
+        mm.add("(prefers-reduced-motion: reduce)", () => {
+          setSettingsRendered(false);
+        });
+
+        mm.add("(prefers-reduced-motion: no-preference)", () => {
+          gsap.to(el, {
+            opacity: 0,
+            y: -6,
+            duration: 0.58,
+            ease: "power1.inOut",
+            onComplete: () => setSettingsRendered(false),
+          });
+        });
+      }
+
+      return () => mm.revert();
+    },
+    { scope: shellRef, dependencies: [showSettings, settingsRendered], revertOnUpdate: true },
+  );
 
   const { isDragging, dragHandlers, handleFileInput } = useImageDrop(setReferenceImage);
 
@@ -70,88 +125,112 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
       }}
     >
       <div className={`create-prompt-inner${wide ? " is-wide" : ""}${isFlat ? " is-full" : ""}`}>
-        <div
-          {...dragHandlers}
-          className={`create-prompt-shell${isDragging ? " is-dragging" : ""}${isFlat ? " create-prompt-shell--flat" : ""}`}
-        >
-          <div className="create-prompt-input-row">
-            {referenceImageDataUrl ? (
-              <div className="create-prompt-ref-slot">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={referenceImageDataUrl} alt="Reference" className="create-prompt-ref-img" />
-                <span className="create-prompt-ref-badge">{referenceImg2img ? "IMG2IMG" : "NO KEY"}</span>
-                <button type="button" className="create-prompt-ref-remove" onClick={() => setReferenceImage(null)} title="Remove reference">
-                  ×
+        <div className="editor-imagine-root" style={promptBoxDialStyles(dials)}>
+          <div
+            ref={shellRef}
+            {...dragHandlers}
+            className={`editor-imagine-shell create-prompt-shell${isDragging ? " is-dragging" : ""}${isFlat ? " create-prompt-shell--flat" : ""}${isGenerating ? " is-generating" : ""}`}
+          >
+            <div className="create-prompt-input-row">
+              {referenceImageDataUrl ? (
+                <div className="create-prompt-ref-slot">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={referenceImageDataUrl} alt="Reference" className="create-prompt-ref-img" />
+                  <span className="create-prompt-ref-badge">{referenceImg2img ? "IMG2IMG" : "NO KEY"}</span>
+                  <button type="button" className="create-prompt-ref-remove" onClick={() => setReferenceImage(null)} title="Remove reference">
+                    ×
+                  </button>
+                </div>
+              ) : (
+                <button type="button" className="create-prompt-ref-btn" onClick={() => fileInputRef.current?.click()} title="Add reference image">
+                  🖼
                 </button>
-              </div>
-            ) : (
-              <button type="button" className="create-prompt-ref-btn" onClick={() => fileInputRef.current?.click()} title="Add reference image">
-                🖼
-              </button>
-            )}
+              )}
 
-            <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInput} style={{ display: "none" }} />
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInput} style={{ display: "none" }} />
 
-            <textarea
-              className="create-prompt-textarea"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
+              <textarea
+                className="create-prompt-textarea editor-imagine-textarea"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    submit();
+                  }
+                }}
+                placeholder={
+                  isDragging
+                    ? "Drop image here…"
+                    : referenceImageDataUrl
+                      ? mediaType === "video"
+                        ? "Describe the motion or scene for your clip…"
+                        : "Describe how to transform the reference…"
+                      : mediaType === "video"
+                        ? "Describe your short video…"
+                        : "Describe what you want to create…"
                 }
-              }}
-              placeholder={
-                isDragging
-                  ? "Drop image here…"
-                  : referenceImageDataUrl
-                    ? mediaType === "video"
-                      ? "Describe the motion or scene for your clip…"
-                      : "Describe how to transform the reference…"
-                    : mediaType === "video"
-                      ? "Describe your short video…"
-                      : "Describe what you want to create…"
-              }
-              rows={2}
-            />
+                rows={2}
+              />
 
-            <div className="create-media-toggle create-media-toggle--inline" role="group" aria-label="Media type">
-              <button
-                type="button"
-                className={`create-media-toggle-btn${mediaType === "image" ? " is-active" : ""}`}
-                onClick={() => setMediaType("image")}
-              >
-                Image
-              </button>
-              <button
-                type="button"
-                className={`create-media-toggle-btn${mediaType === "video" ? " is-active" : ""}`}
-                onClick={() => setMediaType("video")}
-              >
-                Video
+              <button type="button" className="editor-imagine-submit create-prompt-submit" onClick={submit} disabled={!canSubmit}>
+                {isGenerating ? "…" : "↑"}
               </button>
             </div>
 
-            <button type="button" className={`create-prompt-icon-btn${showSettings ? " is-active" : ""}`} onClick={() => setShowSettings((v) => !v)} title="Settings">
-              ⚙
-            </button>
+            <div className={`editor-imagine-chips create-prompt-styles${isFlat ? " create-prompt-styles--flat" : ""}`}>
+              <StylePresetChips
+                activeStyleId={activeStyleId}
+                onToggle={toggleStyle}
+                styles={ALL_STYLES}
+                expanded={showSettings}
+                showHiddenCount
+              />
+            </div>
 
-            <button type="button" className="create-prompt-submit" onClick={submit} disabled={!canSubmit}>
-              {isGenerating ? "…" : "↑"}
-            </button>
-          </div>
+            {settingsRendered && (
+              <div ref={settingsRef} className="editor-imagine-settings-dropdown is-gsap-animated">
+                <GenerationSettingsFields
+                  variant="card"
+                  settings={settings}
+                  mediaType={mediaType}
+                  onChange={setSettings}
+                />
+              </div>
+            )}
 
-          <div className={`create-prompt-styles${isFlat ? " create-prompt-styles--flat" : ""}`}>
-            <StylePresetChips activeStyleId={activeStyleId} onToggle={toggleStyle} />
+            <div className="editor-imagine-footer">
+              <div className="create-media-toggle create-media-toggle--inline" role="group" aria-label="Media type">
+                <button
+                  type="button"
+                  className={`create-media-toggle-btn${mediaType === "image" ? " is-active" : ""}`}
+                  onClick={() => setMediaType("image")}
+                >
+                  Image
+                </button>
+                <button
+                  type="button"
+                  className={`create-media-toggle-btn${mediaType === "video" ? " is-active" : ""}`}
+                  onClick={() => setMediaType("video")}
+                >
+                  Video
+                </button>
+              </div>
+              <button
+                type="button"
+                className={`editor-imagine-see-more-btn${showSettings ? " is-active" : ""}`}
+                onClick={() => setShowSettings((v) => !v)}
+                aria-expanded={showSettings}
+                aria-label={showSettings ? "Collapse styles and settings" : "Expand styles and settings"}
+                title={showSettings ? "See less" : "See more"}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden className="editor-imagine-see-more-icon">
+                  <path fill="currentColor" d="m7 10l5 5 5-5z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-
-        {showSettings && (
-          <div className="create-prompt-settings">
-            <SettingsFields settings={settings} setSettings={setSettings} mediaType={mediaType} />
-          </div>
-        )}
 
         {showHint && (
           <p className="create-prompt-hint">
@@ -168,75 +247,5 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
         )}
       </div>
     </div>
-  );
-}
-
-function SettingsFields({
-  settings,
-  setSettings,
-  mediaType,
-}: {
-  settings: ReturnType<typeof useGenerationStore.getState>["settings"];
-  setSettings: ReturnType<typeof useGenerationStore.getState>["setSettings"];
-  mediaType: "image" | "video";
-}) {
-  const aspectOptions =
-    mediaType === "video"
-      ? ASPECT_RATIO_OPTIONS.filter((o) => o.id === "9:16" || o.id === "16:9")
-      : ASPECT_RATIO_OPTIONS;
-
-  return (
-    <>
-      <div>
-        <label className="create-prompt-label">Aspect ratio</label>
-        <select className="create-prompt-select" value={settings.aspectRatio} onChange={(e) => setSettings({ aspectRatio: e.target.value as typeof settings.aspectRatio })}>
-          {aspectOptions.map((o) => (
-            <option key={o.id} value={o.id}>{o.label} ({o.id})</option>
-          ))}
-        </select>
-      </div>
-      {mediaType === "video" ? (
-        <>
-          <div>
-            <label className="create-prompt-label">Duration</label>
-            <select className="create-prompt-select" value={settings.videoDuration} onChange={(e) => setSettings({ videoDuration: Number(e.target.value) as typeof settings.videoDuration })}>
-              <option value={4}>4 seconds</option>
-              <option value={6}>6 seconds</option>
-              <option value={8}>8 seconds</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)" }}>
-              <input type="checkbox" checked={settings.videoAudio} onChange={(e) => setSettings({ videoAudio: e.target.checked })} style={{ accentColor: "var(--color-accent)" }} />
-              Generate audio
-            </label>
-          </div>
-        </>
-      ) : (
-        <>
-          <div>
-            <label className="create-prompt-label">Stylize · {settings.stylize}</label>
-            <input type="range" min={0} max={300} value={settings.stylize} onChange={(e) => setSettings({ stylize: Number(e.target.value) })} style={{ width: "100%", marginTop: 8 }} />
-          </div>
-          <div>
-            <label className="create-prompt-label">Variety · {settings.variety}</label>
-            <input type="range" min={0} max={100} value={settings.variety} onChange={(e) => setSettings({ variety: Number(e.target.value) })} style={{ width: "100%", marginTop: 8 }} />
-          </div>
-          <div>
-            <label className="create-prompt-label">Model</label>
-            <select className="create-prompt-select" value={settings.model} onChange={(e) => setSettings({ model: e.target.value as "flux" | "turbo" })}>
-              <option value="flux">Flux (quality)</option>
-              <option value="turbo">Turbo (fast)</option>
-            </select>
-          </div>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)" }}>
-              <input type="checkbox" checked={settings.draft} onChange={(e) => setSettings({ draft: e.target.checked })} style={{ accentColor: "var(--color-accent)" }} />
-              Draft mode (faster)
-            </label>
-          </div>
-        </>
-      )}
-    </>
   );
 }

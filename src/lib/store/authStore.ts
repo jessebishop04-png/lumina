@@ -14,7 +14,7 @@ interface AuthState {
   signInWithEmail: (email: string, password: string) => AuthUser | null;
   syncGoogleUser: (user: AuthUser) => void;
   signOut: () => void;
-  updateProfile: (partial: { displayName?: string; username?: string }) => void;
+  updateProfile: (partial: { displayName?: string; username?: string; avatarUrl?: string }) => void;
 }
 
 const ACCOUNTS_KEY = "lumina-accounts";

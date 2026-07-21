@@ -39,30 +39,17 @@ export default function EditorPage() {
   const isReady = !isLoading && !!project;
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "var(--color-surface)", overflow: "hidden" }}>
+    <div className="editor-page">
       <InstagramSidebar />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+      <div className="editor-main">
         <LightroomToolbar />
 
-        <div style={{ flex: 1, display: "flex", overflow: "hidden", minHeight: 0, minWidth: 0, position: "relative" }}>
+        <div className="editor-workspace">
           {!isReady && (
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 2,
-                background: "var(--color-loading-overlay)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexDirection: "column",
-                gap: 12,
-                pointerEvents: "none",
-              }}
-            >
+            <div className="editor-loading-overlay">
               <div className="spinner" />
-              <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>Loading project…</span>
+              <span>Loading project…</span>
             </div>
           )}
           <EditorCanvas />

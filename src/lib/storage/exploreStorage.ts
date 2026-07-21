@@ -1,4 +1,4 @@
-import type { ExplorePost, ExploreComment } from "@/lib/types/explore";
+import type { ExplorePost, ExploreComment, ExploreCommentView } from "@/lib/types/explore";
 import { openDB, STORES } from "./db";
 
 export async function saveExplorePost(post: ExplorePost): Promise<void> {
@@ -126,6 +126,7 @@ export function setFollowedCreatorIds(ids: Set<string>): void {
 }
 
 const COMMENTS_KEY = "lumina-explore-comments";
+const COMMENT_LIKES_KEY = "lumina-explore-comment-likes";
 
 function readAllComments(): Record<string, ExploreComment[]> {
   if (typeof window === "undefined") return {};
@@ -141,9 +142,35 @@ function writeAllComments(all: Record<string, ExploreComment[]>): void {
   localStorage.setItem(COMMENTS_KEY, JSON.stringify(all));
 }
 
-export function getCommentsForPost(postId: string): ExploreComment[] {
+export function getLikedCommentIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = localStorage.getItem(COMMENT_LIKES_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function setLikedCommentIds(ids: Set<string>): void {
+  localStorage.setItem(COMMENT_LIKES_KEY, JSON.stringify([...ids]));
+}
+
+function enrichComment(comment: ExploreComment): ExploreCommentView {
+  const liked = getLikedCommentIds();
+  return {
+    ...comment,
+    parentId: comment.parentId ?? null,
+    likeCount: comment.likeCount ?? 0,
+    likedByMe: liked.has(comment.id),
+  };
+}
+
+export function getCommentsForPost(postId: string): ExploreCommentView[] {
   const list = readAllComments()[postId] ?? [];
-  return [...list].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return [...list]
+    .map(enrichComment)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 
 export function saveExploreComment(comment: ExploreComment): void {
@@ -151,4 +178,41 @@ export function saveExploreComment(comment: ExploreComment): void {
   const list = all[comment.postId] ?? [];
   all[comment.postId] = [comment, ...list];
   writeAllComments(all);
+}
+
+export function updateExploreComment(
+  postId: string,
+  commentId: string,
+  updates: Partial<ExploreComment>
+): void {
+  const all = readAllComments();
+  const list = all[postId] ?? [];
+  all[postId] = list.map((c) => (c.id === commentId ? { ...c, ...updates } : c));
+  writeAllComments(all);
+}
+
+export function toggleCommentLikeInStorage(
+  commentId: string,
+  postId: string
+): { likeCount: number; likedByMe: boolean } | null {
+  const all = readAllComments();
+  const list = all[postId] ?? [];
+  const comment = list.find((c) => c.id === commentId);
+  if (!comment) return null;
+
+  const liked = getLikedCommentIds();
+  const nextLiked = new Set(liked);
+  let likeCount = comment.likeCount ?? 0;
+
+  if (nextLiked.has(commentId)) {
+    nextLiked.delete(commentId);
+    likeCount = Math.max(0, likeCount - 1);
+  } else {
+    nextLiked.add(commentId);
+    likeCount += 1;
+  }
+
+  setLikedCommentIds(nextLiked);
+  updateExploreComment(postId, commentId, { likeCount });
+  return { likeCount, likedByMe: nextLiked.has(commentId) };
 }

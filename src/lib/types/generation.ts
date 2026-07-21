@@ -25,12 +25,14 @@ export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
 export interface ImagineEditState {
   prompt: string;
   activeStyleId: string | null;
+  mediaType: GenerationMediaType;
   settings: GenerationSettings;
 }
 
 export const DEFAULT_IMAGINE_STATE: ImagineEditState = {
   prompt: "",
   activeStyleId: null,
+  mediaType: "image",
   settings: { ...DEFAULT_GENERATION_SETTINGS },
 };
 

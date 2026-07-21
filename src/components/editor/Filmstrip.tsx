@@ -22,20 +22,7 @@ export function Filmstrip() {
   if (!project) return null;
 
   return (
-    <div
-      style={{
-        height: 88,
-        minHeight: 88,
-        background: "var(--color-surface-panel)",
-        borderTop: "1px solid var(--color-border)",
-        display: "flex",
-        alignItems: "center",
-        padding: "0 12px",
-        gap: 8,
-        overflowX: "auto",
-        flexShrink: 0,
-      }}
-    >
+    <div className="editor-filmstrip">
       {project.images.map((img) => {
         const isActive = project.activeImageId === img.id;
         return (
@@ -47,21 +34,20 @@ export function Filmstrip() {
                 setEditorModule("edit");
               }}
               type="button"
-              style={{
-                flexShrink: 0,
-                width: 68,
-                height: 68,
-                borderRadius: 4,
-                overflow: "hidden",
-                border: isActive ? "2px solid var(--color-accent)" : "2px solid transparent",
-                opacity: isActive ? 1 : 0.55,
-                padding: 0,
-                cursor: "pointer",
-                transition: "opacity 0.15s",
-              }}
+              className={`editor-filmstrip-thumb${isActive ? " is-active" : ""}`}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={img.thumbnailDataUrl} alt={img.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {img.mediaType === "video" ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img.thumbnailDataUrl} alt={img.name} />
+                  <span className="editor-filmstrip-video-badge" aria-hidden>
+                    ▶
+                  </span>
+                </>
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={img.thumbnailDataUrl} alt={img.name} />
+              )}
             </button>
             {img.id === imagineSourceImageId && imagineGenerating && <FilmstripGeneratingSlot />}
           </span>
@@ -71,19 +57,7 @@ export function Filmstrip() {
       <button
         onClick={() => fileRef.current?.click()}
         type="button"
-        style={{
-          flexShrink: 0,
-          width: 68,
-          height: 68,
-          borderRadius: 4,
-          border: "1px dashed var(--color-border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--color-text-secondary)",
-          fontSize: 24,
-          background: "var(--color-surface)",
-        }}
+        className="editor-filmstrip-add"
       >
         +
       </button>

@@ -48,28 +48,10 @@ export function AnimateImagePanel({
   };
 
   return (
-    <div
-      className={`animate-image-panel${compact ? " animate-image-panel--compact" : ""}`}
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: compact ? 12 : 16,
-        padding: compact ? "16px 0 0" : "20px 24px",
-        borderTop: compact ? "1px solid var(--color-border-subtle)" : undefined,
-        background: compact ? undefined : "var(--color-surface-panel)",
-        borderRadius: compact ? undefined : 12,
-        border: compact ? undefined : "1px solid var(--color-border)",
-        maxWidth: compact ? undefined : 480,
-        width: "100%",
-      }}
-    >
+    <div className={`animate-image-panel${compact ? " animate-image-panel--compact" : ""}`}>
       <div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--color-text-primary)", margin: "0 0 4px" }}>
-          Animate image
-        </p>
-        <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>
-          {hint}
-        </p>
+        <p className="animate-image-panel-title">Animate image</p>
+        <p className="animate-image-panel-hint">{hint}</p>
       </div>
 
       <div>
@@ -80,7 +62,7 @@ export function AnimateImagePanel({
           onChange={(e) => setMotionPrompt(e.target.value)}
           placeholder="Describe how the image should move…"
           rows={2}
-          style={{ marginTop: 6, minHeight: 56, resize: "vertical" }}
+          style={{ marginTop: 6, minHeight: 56, resize: "vertical", width: "100%" }}
         />
       </div>
 
@@ -119,50 +101,23 @@ export function AnimateImagePanel({
         <StylePresetChips activeStyleId={styleId} onToggle={toggleStyle} styles={styleOptions} />
       </div>
 
-      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--color-text-primary)" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, color: "var(--animate-modal-label-color, var(--color-text-primary))" }}>
         <input
           type="checkbox"
           checked={videoAudio}
           onChange={(e) => setVideoAudio(e.target.checked)}
-          style={{ accentColor: "var(--color-accent)" }}
+          style={{ accentColor: "var(--animate-modal-generate-bg, var(--color-accent))" }}
         />
         Generate audio
       </label>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
         {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            style={{
-              padding: "10px 18px",
-              fontSize: 13,
-              fontWeight: 600,
-              borderRadius: 10,
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-secondary)",
-            }}
-          >
+          <button type="button" className="animate-image-panel-cancel" onClick={onCancel}>
             Cancel
           </button>
         )}
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={submit}
-          style={{
-            padding: "10px 18px",
-            fontSize: 13,
-            fontWeight: 600,
-            borderRadius: 10,
-            border: "1px solid var(--color-accent)",
-            background: "var(--color-accent)",
-            color: "#fff",
-            opacity: disabled ? 0.5 : 1,
-            cursor: disabled ? "not-allowed" : "pointer",
-          }}
-        >
+        <button type="button" className="animate-image-panel-generate" disabled={disabled} onClick={submit}>
           Generate video
         </button>
       </div>

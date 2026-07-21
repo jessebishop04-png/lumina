@@ -9,16 +9,15 @@ import { EditorImaginePrompt } from "@/components/editor/EditorImaginePrompt";
 
 function HistogramPlaceholder() {
   return (
-    <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border)" }}>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 48 }}>
+    <div className="editor-panel-histogram">
+      <div className="editor-panel-histogram-bars">
         {Array.from({ length: 40 }).map((_, i) => (
           <div
             key={i}
+            className="editor-panel-histogram-bar"
             style={{
-              flex: 1,
               height: `${25 + Math.abs(Math.sin(i * 0.5)) * 20}%`,
-              background: i < 20 ? "var(--color-border)" : "var(--color-text-muted)",
-              borderRadius: 1,
+              opacity: i < 20 ? 0.45 : 0.75,
             }}
           />
         ))}
@@ -39,7 +38,6 @@ function AccordionSection({
   const [open, setOpen] = useState(defaultOpen);
   const activeImage = useActiveImage();
   const updateAdjustment = useEditorStore((s) => s.updateAdjustment);
-  const toggleAdjustment = useEditorStore((s) => s.toggleAdjustment);
   const resetAdjustment = useEditorStore((s) => s.resetAdjustment);
   const persistProject = useEditorStore((s) => s.persistProject);
   const beginAdjusting = useEditorStore((s) => s.beginAdjusting);
@@ -49,25 +47,25 @@ function AccordionSection({
   if (!activeImage) return null;
 
   return (
-    <div style={{ borderBottom: "1px solid var(--color-border)" }}>
-      <button className="lr-section-header" onClick={() => setOpen((o) => !o)} type="button">
+    <div className="editor-panel-section">
+      <button className="editor-panel-section-header" onClick={() => setOpen((o) => !o)} type="button">
         <span>{title}</span>
-        <span style={{ fontSize: 10, color: "var(--color-text-secondary)" }}>{open ? "▼" : "▶"}</span>
+        <span className="editor-panel-section-chevron">{open ? "▼" : "▶"}</span>
       </button>
       {open && (
-        <div style={{ padding: "8px 16px 16px" }}>
+        <div className="editor-panel-section-body">
           {defs.map((def) => (
             <Slider
               key={def.key}
+              variant="lr"
               label={def.label}
               value={activeImage.edits[def.key]}
               min={def.min}
               max={def.max}
               step={def.step}
               defaultValue={def.defaultValue}
-              enabled={activeImage.enabledEdits[def.key]}
+              enabled
               onChange={(v) => updateAdjustment(def.key, v)}
-              onToggle={() => toggleAdjustment(def.key)}
               onAdjustStart={beginAdjusting}
               onAdjustEnd={endAdjusting}
               onReset={() => {
@@ -94,64 +92,42 @@ export function DevelopPanel() {
   const persistProject = useEditorStore((s) => s.persistProject);
 
   return (
-    <aside
-      style={{
-        width: 320,
-        minWidth: 320,
-        flexShrink: 0,
-        height: "100%",
-        background: "var(--color-surface-panel)",
-        borderLeft: "1px solid var(--color-border)",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-      }}
-    >
-      <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
-        <span
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: 11,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            color: "var(--color-text-secondary)",
-          }}
-        >
-          {PANEL_TITLES[editorModule] ?? "Panel"}
-        </span>
-      </div>
-
-      {editorModule === "edit" && <HistogramPlaceholder />}
-
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {activeImage && editorModule === "edit" && (
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--color-border)" }}>
-            <EditorImaginePrompt compact />
+    <aside className="editor-develop-panel">
+      <div className="editor-panel-scroll">
+        <div className="editor-panel-pinned">
+          <div className="editor-panel-title-row">
+            <span className="editor-panel-title">{PANEL_TITLES[editorModule] ?? "Panel"}</span>
           </div>
-        )}
+
+          {editorModule === "edit" && <HistogramPlaceholder />}
+
+          {activeImage && editorModule === "edit" && (
+            <div className="editor-panel-imagine">
+              <EditorImaginePrompt compact />
+            </div>
+          )}
+        </div>
+
         {!activeImage ? (
-          <p style={{ textAlign: "center", color: "var(--color-text-secondary)", fontSize: 13, padding: 32 }}>
-            Select a photo from the filmstrip
-          </p>
+          <p className="editor-panel-empty">Select a photo from the filmstrip</p>
         ) : editorModule === "crop" ? (
           <CropPanel />
-        ) : (
+        ) : editorModule === "edit" ? (
           ADJUSTMENT_SECTIONS.map((s, i) => (
             <AccordionSection key={s.id} title={s.label} sectionId={s.id} defaultOpen={i === 0} />
           ))
-        )}
+        ) : null}
       </div>
 
       {activeImage && editorModule === "edit" && (
-        <div style={{ padding: 12, borderTop: "1px solid var(--color-border)" }}>
+        <div className="editor-panel-footer">
           <button
+            className="editor-panel-reset-btn"
             onClick={() => {
               resetAllAdjustments();
               persistProject();
             }}
             type="button"
-            style={{ width: "100%", padding: "8px 0", fontSize: 13, color: "var(--color-text-secondary)", borderRadius: 6 }}
           >
             Reset all adjustments
           </button>

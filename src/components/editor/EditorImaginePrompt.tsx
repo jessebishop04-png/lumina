@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { GenerationSettingsFields } from "@/components/generate/GenerationSettingsFields";
 import { StylePresetChips } from "@/components/generate/StylePresetChips";
 import { PromptGeneratingBanner } from "@/components/editor/ImagineGeneratingIndicator";
-import { ASPECT_RATIO_OPTIONS, DEFAULT_IMAGINE_STATE } from "@/lib/types/generation";
+import { promptBoxDialStyles } from "@/lib/dials/promptBoxDialStyles";
+import { usePromptBoxDials } from "@/lib/dials/usePromptBoxDials";
+import { DEFAULT_IMAGINE_STATE } from "@/lib/types/generation";
 import { useActiveImage, useEditorStore } from "@/lib/store/editorStore";
 
 interface EditorImaginePromptProps {
@@ -12,6 +15,7 @@ interface EditorImaginePromptProps {
 }
 
 export function EditorImaginePrompt({ compact = false, generateCount = compact ? 1 : 4 }: EditorImaginePromptProps) {
+  const dials = usePromptBoxDials();
   const activeImage = useActiveImage();
   const imagineGenerating = useEditorStore((s) => s.imagineGenerating);
   const imagineSourceImageId = useEditorStore((s) => s.imagineSourceImageId);
@@ -19,8 +23,8 @@ export function EditorImaginePrompt({ compact = false, generateCount = compact ?
   const updateImagineState = useEditorStore((s) => s.updateImagineState);
   const toggleImagineStyle = useEditorStore((s) => s.toggleImagineStyle);
   const submitImagineVersions = useEditorStore((s) => s.submitImagineVersions);
-  const [showSettings, setShowSettings] = useState(false);
   const [referenceImg2img, setReferenceImg2img] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     void fetch("/api/generate/status")
@@ -45,7 +49,7 @@ export function EditorImaginePrompt({ compact = false, generateCount = compact ?
   };
 
   return (
-    <div>
+    <div className="editor-imagine-root" style={promptBoxDialStyles(dials)}>
       {!compact && (
         <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "center" }}>
           <div style={{ position: "relative", flexShrink: 0 }}>
@@ -107,18 +111,10 @@ export function EditorImaginePrompt({ compact = false, generateCount = compact ?
         </p>
       )}
 
-      <div
-        style={{
-          borderRadius: 12,
-          border: isGeneratingSource ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
-          background: "var(--color-surface-input)",
-          overflow: "hidden",
-          opacity: isGeneratingSource ? 0.72 : 1,
-          transition: "opacity 0.2s, border-color 0.2s",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 8, padding: compact ? "8px 10px" : "10px 12px" }}>
+      <div className={`editor-imagine-shell${isGeneratingSource ? " is-generating" : ""}`}>
+        <div className="editor-imagine-input-row">
           <textarea
+            className="editor-imagine-textarea"
             value={imagine.prompt}
             onChange={(e) => updateImagineState({ prompt: e.target.value })}
             onKeyDown={(e) => {
@@ -127,56 +123,95 @@ export function EditorImaginePrompt({ compact = false, generateCount = compact ?
                 if (canSubmit) runGenerate();
               }
             }}
-            placeholder="Describe a new version…"
+            placeholder={
+              imagine.mediaType === "video"
+                ? "Describe the motion for your clip…"
+                : "Describe a new version…"
+            }
             rows={compact ? 2 : 3}
-            style={{
-              flex: 1,
-              resize: "none",
-              border: "none",
-              background: "transparent",
-              color: "var(--color-text-primary)",
-              fontSize: 13,
-              lineHeight: 1.45,
-              outline: "none",
-              fontFamily: "inherit",
-              minWidth: 0,
-            }}
           />
           <button
             type="button"
+            className="editor-imagine-submit"
             onClick={runGenerate}
             disabled={!canSubmit}
             title={generateCount === 1 ? "Generate version" : `Generate ${generateCount} versions`}
-            style={{
-              width: compact ? 36 : 40,
-              height: compact ? 36 : 40,
-              borderRadius: 10,
-              background: "var(--color-accent)",
-              color: "#fff",
-              fontSize: compact ? 16 : 18,
-              fontWeight: 600,
-              opacity: !canSubmit ? 0.45 : 1,
-              flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
           >
             {isGeneratingSource ? (
-              <div className="spinner" style={{ width: 16, height: 16, borderWidth: 2, borderColor: "rgba(255,255,255,0.35)", borderTopColor: "#fff" }} />
+              <div
+                className="spinner"
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderWidth: 2,
+                  borderColor: "rgba(255,255,255,0.35)",
+                  borderTopColor: "#fff",
+                }}
+              />
             ) : (
               "↑"
             )}
           </button>
         </div>
 
-        <div
-          style={{
-            borderTop: "1px solid var(--color-border-subtle)",
-            padding: compact ? "6px 8px 8px" : "8px 10px 10px",
-          }}
-        >
+        <div className="editor-imagine-chips">
           <StylePresetChips activeStyleId={imagine.activeStyleId} onToggle={toggleImagineStyle} />
+        </div>
+
+        {showSettings && (
+          <div className="editor-imagine-settings-dropdown">
+            <GenerationSettingsFields
+              variant="card"
+              compact={compact}
+              settings={imagine.settings}
+              mediaType={imagine.mediaType}
+              onChange={(partial) => updateImagineState({ settings: partial })}
+            />
+          </div>
+        )}
+
+        <div className="editor-imagine-footer">
+          <div className="create-media-toggle create-media-toggle--inline create-media-toggle--editor" role="group" aria-label="Media type">
+            <button
+              type="button"
+              className={`create-media-toggle-btn${imagine.mediaType === "image" ? " is-active" : ""}`}
+              onClick={() => updateImagineState({ mediaType: "image" })}
+            >
+              Image
+            </button>
+            <button
+              type="button"
+              className={`create-media-toggle-btn${imagine.mediaType === "video" ? " is-active" : ""}`}
+              onClick={() => updateImagineState({ mediaType: "video" })}
+            >
+              Video
+            </button>
+          </div>
+          <button
+            type="button"
+            className={`editor-imagine-settings-btn${showSettings ? " is-active" : ""}`}
+            onClick={() => setShowSettings((v) => !v)}
+            title="Generation settings"
+            aria-expanded={showSettings}
+            aria-label="Generation settings"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+              <path
+                d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.77 1.03 1.41 1.1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -190,121 +225,14 @@ export function EditorImaginePrompt({ compact = false, generateCount = compact ?
 
       {compact && referenceImg2img && !imagineError && !imagineGenerating && (
         <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--color-text-muted)" }}>
-          Adds a new photo after this one in the filmstrip.
+          {imagine.mediaType === "video"
+            ? "Adds a new clip after this one in the filmstrip."
+            : "Adds a new photo after this one in the filmstrip."}
         </p>
       )}
 
       {imagineError && (
         <p style={{ margin: "8px 0 0", fontSize: 12, color: "#e74c3c", lineHeight: 1.4 }}>{imagineError}</p>
-      )}
-
-      {!compact && (
-        <>
-          <button
-            type="button"
-            onClick={() => setShowSettings((v) => !v)}
-            style={{
-              width: "100%",
-              padding: "8px 0",
-              fontSize: 12,
-              color: "var(--color-text-secondary)",
-              marginTop: 12,
-              marginBottom: showSettings ? 12 : 0,
-            }}
-          >
-            {showSettings ? "Hide settings ▲" : "Generation settings ▼"}
-          </button>
-
-          {showSettings && (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 10,
-                border: "1px solid var(--color-border)",
-                background: "var(--color-surface)",
-                display: "grid",
-                gap: 12,
-                marginBottom: 16,
-              }}
-            >
-              <div>
-                <label
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: "var(--color-text-secondary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                  }}
-                >
-                  Aspect ratio
-                </label>
-                <select
-                  value={imagine.settings.aspectRatio}
-                  onChange={(e) =>
-                    updateImagineState({
-                      settings: { aspectRatio: e.target.value as typeof imagine.settings.aspectRatio },
-                    })
-                  }
-                  style={{
-                    width: "100%",
-                    marginTop: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    border: "1px solid var(--color-border)",
-                    background: "var(--color-surface-panel)",
-                    color: "var(--color-text-primary)",
-                    fontSize: 12,
-                  }}
-                >
-                  {ASPECT_RATIO_OPTIONS.map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label} ({o.id})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
-                  Stylize · {imagine.settings.stylize}
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={300}
-                  value={imagine.settings.stylize}
-                  onChange={(e) => updateImagineState({ settings: { stylize: Number(e.target.value) } })}
-                  style={{ width: "100%", marginTop: 6 }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, color: "var(--color-text-secondary)" }}>
-                  Variety · {imagine.settings.variety}
-                </label>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={imagine.settings.variety}
-                  onChange={(e) => updateImagineState({ settings: { variety: Number(e.target.value) } })}
-                  style={{ width: "100%", marginTop: 6 }}
-                />
-              </div>
-
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={imagine.settings.draft}
-                  onChange={(e) => updateImagineState({ settings: { draft: e.target.checked } })}
-                  style={{ accentColor: "var(--color-accent)" }}
-                />
-                Draft mode (faster)
-              </label>
-            </div>
-          )}
-        </>
       )}
     </div>
   );

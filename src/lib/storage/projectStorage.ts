@@ -5,6 +5,10 @@ const STORAGE_KEY = "lumina-projects";
 
 export function projectToSummary(project: Project): ProjectSummary {
   const cover = project.images[0];
+  const hasVideo = project.images.some((img) => img.mediaType === "video");
+  const hasPhoto = project.images.some((img) => img.mediaType !== "video");
+  const coverIsVideo = cover?.mediaType === "video";
+
   return {
     id: project.id,
     name: project.name,
@@ -12,6 +16,9 @@ export function projectToSummary(project: Project): ProjectSummary {
     thumbnailDataUrl: cover?.thumbnailDataUrl ?? null,
     previewDataUrl: cover?.previewDataUrl ?? cover?.thumbnailDataUrl ?? null,
     imageCount: project.images.length,
+    mediaType: coverIsVideo ? "video" : "image",
+    hasVideo,
+    hasPhoto,
   };
 }
 

@@ -47,7 +47,7 @@ function LoginForm() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "var(--color-surface)",
+        background: "var(--color-bg)",
         padding: 24,
       }}
     >

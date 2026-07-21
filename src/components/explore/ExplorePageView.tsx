@@ -17,6 +17,8 @@ export function ExplorePageView() {
   const loadExplore = useExploreStore((s) => s.loadExplore);
   const filterTab = useExploreStore((s) => s.filterTab);
   const setFilterTab = useExploreStore((s) => s.setFilterTab);
+  const mediaFilter = useExploreStore((s) => s.mediaFilter);
+  const setMediaFilter = useExploreStore((s) => s.setMediaFilter);
   const loadJobs = useGenerationStore((s) => s.loadJobs);
   const isGenerating = useGenerationStore((s) => s.isGenerating);
 
@@ -30,7 +32,13 @@ export function ExplorePageView() {
       top={
         <>
           <CreatePromptBar sticky={false} showHint={false} wide variant="flat" />
-          <ExploreFilterBar active={filterTab} onChange={setFilterTab} minimal />
+          <ExploreFilterBar
+            active={filterTab}
+            onChange={setFilterTab}
+            mediaFilter={mediaFilter}
+            onMediaFilterChange={setMediaFilter}
+            minimal
+          />
         </>
       }
       overlay={
