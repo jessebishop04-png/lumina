@@ -11,6 +11,7 @@ import {
   getCommentsForPost,
   replaceCatalogExplorePosts,
   saveExploreComment,
+  deleteExploreComment,
   setFollowedCreatorIds,
   setLikedPostIds,
   toggleCommentLikeInStorage,
@@ -44,6 +45,7 @@ interface ExploreState {
   setSelectedPost: (postId: string | null) => void;
   loadPostComments: (postId: string) => void;
   addComment: (postId: string, text: string, parentId?: string | null) => Promise<void>;
+  deleteComment: (postId: string, commentId: string) => Promise<void>;
   toggleCommentLike: (postId: string, commentId: string) => Promise<void>;
   markPromptCopied: (postId: string) => void;
 }
@@ -293,6 +295,14 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
     set((state) => ({
       postComments: [view, ...state.postComments.filter((c) => c.id !== comment.id)],
     }));
+  },
+
+  deleteComment: async (postId, commentId) => {
+    const profile = requireLocalProfile();
+    const deleted = deleteExploreComment(postId, commentId, profile.id);
+    if (!deleted) return;
+
+    set({ postComments: getCommentsForPost(postId) });
   },
 
   toggleCommentLike: async (postId, commentId) => {

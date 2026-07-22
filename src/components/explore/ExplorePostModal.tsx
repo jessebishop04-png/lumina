@@ -5,6 +5,7 @@ import gsap from "gsap";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getStyleById } from "@/lib/constants/generationStyles";
+import { getLocalProfile } from "@/lib/user/localProfile";
 import { buildCommentThreads } from "@/lib/explore/commentThreads";
 import { isExploreVideo } from "@/lib/explore/exploreMedia";
 import { copyExplorePrompt, downloadExploreImage } from "@/lib/explore/exploreActions";
@@ -77,6 +78,14 @@ function SmallHeartIcon({ filled }: { filled?: boolean }) {
   );
 }
 
+function SmallTrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function formatCommentTime(createdAt: string): string {
   return new Date(createdAt).toLocaleString(undefined, {
     month: "short",
@@ -96,11 +105,13 @@ function resolveReplyParentId(comment: ExploreCommentView, threads: ExploreComme
 interface CommentRowProps {
   comment: ExploreCommentView;
   isReply?: boolean;
+  isOwn: boolean;
   onReply: (comment: ExploreCommentView) => void;
   onToggleLike: (commentId: string) => void;
+  onDelete: (commentId: string) => void;
 }
 
-function CommentRow({ comment, isReply = false, onReply, onToggleLike }: CommentRowProps) {
+function CommentRow({ comment, isReply = false, isOwn, onReply, onToggleLike, onDelete }: CommentRowProps) {
   return (
     <div className={`explore-modal-comment-row${isReply ? " explore-modal-comment-row--reply" : ""}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -131,16 +142,28 @@ function CommentRow({ comment, isReply = false, onReply, onToggleLike }: Comment
           </button>
         </div>
       </div>
-      <button
-        type="button"
-        className="explore-modal-comment-like-btn"
-        data-liked={comment.likedByMe ? "true" : "false"}
-        onClick={() => onToggleLike(comment.id)}
-        aria-label={comment.likedByMe ? "Unlike comment" : "Like comment"}
-      >
-        <SmallHeartIcon filled={comment.likedByMe} />
-        {comment.likeCount > 0 && <span className="explore-modal-comment-like-count">{comment.likeCount}</span>}
-      </button>
+      <div className="explore-modal-comment-trailing">
+        {isOwn && (
+          <button
+            type="button"
+            className="explore-modal-comment-delete-btn"
+            onClick={() => onDelete(comment.id)}
+            aria-label="Delete comment"
+          >
+            <SmallTrashIcon />
+          </button>
+        )}
+        <button
+          type="button"
+          className="explore-modal-comment-like-btn"
+          data-liked={comment.likedByMe ? "true" : "false"}
+          onClick={() => onToggleLike(comment.id)}
+          aria-label={comment.likedByMe ? "Unlike comment" : "Like comment"}
+        >
+          <SmallHeartIcon filled={comment.likedByMe} />
+          {comment.likeCount > 0 && <span className="explore-modal-comment-like-count">{comment.likeCount}</span>}
+        </button>
+      </div>
     </div>
   );
 }
@@ -148,17 +171,25 @@ function CommentRow({ comment, isReply = false, onReply, onToggleLike }: Comment
 interface CommentThreadProps {
   thread: ExploreCommentThread;
   expanded: boolean;
+  currentUserId: string | null;
   onReply: (comment: ExploreCommentView) => void;
   onToggleLike: (commentId: string) => void;
+  onDelete: (commentId: string) => void;
   onToggleReplies: (commentId: string) => void;
 }
 
-function CommentThread({ thread, expanded, onReply, onToggleLike, onToggleReplies }: CommentThreadProps) {
+function CommentThread({ thread, expanded, currentUserId, onReply, onToggleLike, onDelete, onToggleReplies }: CommentThreadProps) {
   const replyLabel = thread.replyCount === 1 ? "View 1 reply" : `View all ${thread.replyCount} replies`;
 
   return (
     <li className="explore-modal-comment">
-      <CommentRow comment={thread} onReply={onReply} onToggleLike={onToggleLike} />
+      <CommentRow
+        comment={thread}
+        isOwn={currentUserId === thread.authorId}
+        onReply={onReply}
+        onToggleLike={onToggleLike}
+        onDelete={onDelete}
+      />
 
       {thread.replyCount > 0 && (
         <button type="button" className="explore-modal-comment-replies-toggle" onClick={() => onToggleReplies(thread.id)}>
@@ -170,7 +201,14 @@ function CommentThread({ thread, expanded, onReply, onToggleLike, onToggleReplie
         <ul className="explore-modal-comment-replies">
           {thread.replies.map((reply) => (
             <li key={reply.id}>
-              <CommentRow comment={reply} isReply onReply={onReply} onToggleLike={onToggleLike} />
+              <CommentRow
+                comment={reply}
+                isReply
+                isOwn={currentUserId === reply.authorId}
+                onReply={onReply}
+                onToggleLike={onToggleLike}
+                onDelete={onDelete}
+              />
             </li>
           ))}
         </ul>
@@ -191,6 +229,7 @@ export function ExplorePostModal() {
   const toggleFollow = useExploreStore((s) => s.toggleFollow);
   const markPromptCopied = useExploreStore((s) => s.markPromptCopied);
   const addComment = useExploreStore((s) => s.addComment);
+  const deleteComment = useExploreStore((s) => s.deleteComment);
   const toggleCommentLike = useExploreStore((s) => s.toggleCommentLike);
   const setAnimateTarget = useGenerationStore((s) => s.setAnimateTarget);
   const isGenerating = useGenerationStore((s) => s.isGenerating);
@@ -210,6 +249,7 @@ export function ExplorePostModal() {
   const composeRef = useRef<HTMLDivElement>(null);
 
   const commentThreads = useMemo(() => buildCommentThreads(postComments), [postComments]);
+  const currentUserId = getLocalProfile()?.id ?? null;
 
   useEffect(() => {
     void fetch("/api/generate/status")
@@ -397,6 +437,18 @@ export function ExplorePostModal() {
     void toggleCommentLike(post.id, commentId);
   };
 
+  const handleDeleteComment = (commentId: string) => {
+    void deleteComment(post.id, commentId).then(() => {
+      if (replyingToParentId === commentId) clearReplyMode();
+      setExpandedReplies((prev) => {
+        if (!prev.has(commentId)) return prev;
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
+    });
+  };
+
   const sharePost = async () => {
     const url = `${window.location.origin}/?post=${post.id}`;
     try {
@@ -495,8 +547,10 @@ export function ExplorePostModal() {
                           key={thread.id}
                           thread={thread}
                           expanded={expandedReplies.has(thread.id)}
+                          currentUserId={currentUserId}
                           onReply={startReply}
                           onToggleLike={handleToggleCommentLike}
+                          onDelete={handleDeleteComment}
                           onToggleReplies={toggleReplies}
                         />
                       ))}

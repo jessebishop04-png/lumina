@@ -76,7 +76,7 @@ export function MediaActionsMenu({
           </button>
           {onEdit && (
             <button type="button" role="menuitem" onClick={() => run(onEdit)}>
-              Edit in Lumina
+              Edit
             </button>
           )}
         </div>

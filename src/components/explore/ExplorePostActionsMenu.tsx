@@ -71,7 +71,7 @@ export function ExplorePostActionsMenu({
           </button>
           {onEditCopy && (
             <button type="button" role="menuitem" onClick={() => run(onEditCopy)}>
-              Edit copy in Lumina
+              Edit
             </button>
           )}
           {onAnimate && (

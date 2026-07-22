@@ -191,6 +191,32 @@ export function updateExploreComment(
   writeAllComments(all);
 }
 
+export function deleteExploreComment(postId: string, commentId: string, authorId: string): boolean {
+  const all = readAllComments();
+  const list = all[postId] ?? [];
+  const comment = list.find((c) => c.id === commentId);
+  if (!comment || comment.authorId !== authorId) return false;
+
+  const idsToRemove = new Set<string>([commentId]);
+  if (!comment.parentId) {
+    for (const entry of list) {
+      if (entry.parentId === commentId) idsToRemove.add(entry.id);
+    }
+  }
+
+  all[postId] = list.filter((c) => !idsToRemove.has(c.id));
+  writeAllComments(all);
+
+  const liked = getLikedCommentIds();
+  let changed = false;
+  for (const id of idsToRemove) {
+    if (liked.delete(id)) changed = true;
+  }
+  if (changed) setLikedCommentIds(liked);
+
+  return true;
+}
+
 export function toggleCommentLikeInStorage(
   commentId: string,
   postId: string

@@ -93,6 +93,35 @@ const overlayBtnStyle: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+function TileEditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className="explore-tile-edit-icon">
+      <path
+        d="M15.232 5.232l2.536 2.536m-1.036-5.036a2.5 2.5 0 1 1 3.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TileHeartIcon({ filled }: { filled?: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className="explore-tile-heart-icon">
+      <path
+        d="M19.5 12.572l-7.5 7.428-7.5-7.428a5 5 0 1 1 7.5-6.566 5 5 0 1 1 7.5 6.566z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ExploreTile({
   post,
   onOpen,
@@ -216,28 +245,30 @@ function ExploreTile({
           )}
         </div>
 
-        <div className="explore-tile-actions">
+        <div className="explore-tile-footer">
           <p className="explore-tile-prompt">{post.prompt}</p>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, gap: 8 }}>
+          <div className="explore-tile-footer-actions">
             {!isVideo && (
-              <button type="button" onClick={(e) => void editCopy(e)} style={overlayBtnStyle}>
-                Edit copy
+              <button
+                type="button"
+                className="explore-tile-edit-btn"
+                onClick={(e) => void editCopy(e)}
+                aria-label="Edit"
+                title="Edit"
+              >
+                <TileEditIcon />
               </button>
             )}
             <button
               type="button"
-              className="explore-tile-like-btn"
+              className={`explore-tile-like-btn${post.likedByMe ? " is-liked" : ""}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onLike();
               }}
-              style={{
-                ...overlayBtnStyle,
-                color: post.likedByMe ? "#ff6b8a" : "#fff",
-                marginLeft: "auto",
-              }}
+              aria-label={post.likedByMe ? "Unlike" : "Like"}
             >
-              {post.likedByMe ? "♥" : "♡"} {post.likeCount}
+              <TileHeartIcon filled={post.likedByMe} />
             </button>
           </div>
         </div>
