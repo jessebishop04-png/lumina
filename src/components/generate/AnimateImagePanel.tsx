@@ -5,6 +5,7 @@ import type { AnimateImageOptions, VideoDuration } from "@/lib/types/generation"
 import type { GenerationStyle } from "@/lib/constants/generationStyles";
 import { ALL_STYLES } from "@/lib/constants/generationStyles";
 import { StylePresetChips } from "@/components/generate/StylePresetChips";
+import { PromptSelect } from "@/components/generate/PromptSelect";
 
 interface AnimateImagePanelProps {
   defaultPrompt?: string;
@@ -69,28 +70,28 @@ export function AnimateImagePanel({
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <div>
           <label className="create-prompt-label">Size</label>
-          <select
-            className="create-prompt-select"
+          <PromptSelect
+            ariaLabel="Video size"
             value={aspectRatio}
-            onChange={(e) => setAspectRatio(e.target.value as "9:16" | "16:9")}
-            style={{ marginTop: 6, width: "100%" }}
-          >
-            <option value="9:16">Portrait (9:16)</option>
-            <option value="16:9">Landscape (16:9)</option>
-          </select>
+            onChange={(v) => setAspectRatio(v as "9:16" | "16:9")}
+            options={[
+              { value: "9:16", label: "Portrait (9:16)" },
+              { value: "16:9", label: "Landscape (16:9)" },
+            ]}
+          />
         </div>
         <div>
           <label className="create-prompt-label">Length</label>
-          <select
-            className="create-prompt-select"
-            value={videoDuration}
-            onChange={(e) => setVideoDuration(Number(e.target.value) as VideoDuration)}
-            style={{ marginTop: 6, width: "100%" }}
-          >
-            <option value={4}>4 seconds</option>
-            <option value={6}>6 seconds</option>
-            <option value={8}>8 seconds</option>
-          </select>
+          <PromptSelect
+            ariaLabel="Video length"
+            value={String(videoDuration)}
+            onChange={(v) => setVideoDuration(Number(v) as VideoDuration)}
+            options={[
+              { value: "4", label: "4 seconds" },
+              { value: "6", label: "6 seconds" },
+              { value: "8", label: "8 seconds" },
+            ]}
+          />
         </div>
       </div>
 
