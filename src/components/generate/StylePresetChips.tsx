@@ -6,9 +6,22 @@ import { useGSAP } from "@gsap/react";
 import type { GenerationStyle } from "@/lib/constants/generationStyles";
 import { getStyleChipPlaceholder, getStyleChipThumbnail } from "@/lib/constants/styleChipPlaceholder";
 import { PROMPT_BAR_STYLES } from "@/lib/constants/generationStyles";
+import {
+  PROMPT_PANEL_COLLAPSE_DURATION,
+  PROMPT_PANEL_COLLAPSE_EASE,
+  PROMPT_PANEL_COLLAPSE_FADE_RATIO,
+  PROMPT_PANEL_EXPAND_DURATION,
+  PROMPT_PANEL_EXPAND_EASE,
+} from "@/lib/generation/promptPanelMotion";
 
-const COLLAPSE_HEIGHT_DURATION = 0.58;
-const COLLAPSE_HEIGHT_EASE = "power1.inOut";
+const EXPAND_DURATION = PROMPT_PANEL_EXPAND_DURATION;
+const COLLAPSE_DURATION = PROMPT_PANEL_COLLAPSE_DURATION;
+const EXPAND_EASE = PROMPT_PANEL_EXPAND_EASE;
+const COLLAPSE_EASE = PROMPT_PANEL_COLLAPSE_EASE;
+
+/** Legacy peek-row collapse (first visible row stays shown). */
+const PEEK_COLLAPSE_DURATION = 0.58;
+const PEEK_COLLAPSE_EASE = "power1.inOut";
 
 gsap.registerPlugin(useGSAP);
 
@@ -19,9 +32,11 @@ interface StylePresetChipsProps {
   activeStyleId: string | null;
   onToggle: (styleId: string) => void;
   styles?: GenerationStyle[];
-  /** When false, only one full row of chips is shown */
+  /** When false, chips collapse according to collapseBehavior */
   expanded?: boolean;
-  /** Show +N more styles hint below collapsed row */
+  /** peek = show one row when collapsed; hidden = show nothing until expanded */
+  collapseBehavior?: "peek" | "hidden";
+  /** Show +N more styles hint below collapsed peek row */
   showHiddenCount?: boolean;
 }
 
@@ -30,8 +45,10 @@ export function StylePresetChips({
   onToggle,
   styles = PROMPT_BAR_STYLES,
   expanded = true,
+  collapseBehavior = "peek",
   showHiddenCount = false,
 }: StylePresetChipsProps) {
+  const hideUntilExpanded = collapseBehavior === "hidden";
   const allStyles = styles;
   const wrapRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
@@ -44,7 +61,8 @@ export function StylePresetChips({
   const [layoutExpanded, setLayoutExpanded] = useState(expanded);
   const [visibleCount, setVisibleCount] = useState(allStyles.length);
 
-  const showAllChips = layoutExpanded || expanded;
+  const isCollapsing = !expanded && layoutExpanded;
+  const showAllChips = layoutExpanded || expanded || isCollapsing;
 
   const computeFitCount = useCallback(() => {
     if (!wrapRef.current || !measureRef.current) return allStyles.length;
@@ -71,27 +89,27 @@ export function StylePresetChips({
   }, [allStyles.length]);
 
   const measureVisible = useCallback(() => {
-    if (layoutExpanded || !wrapRef.current || !measureRef.current) {
+    if (hideUntilExpanded || layoutExpanded || !wrapRef.current || !measureRef.current) {
       setVisibleCount(allStyles.length);
       return;
     }
 
     setVisibleCount(computeFitCount());
-  }, [allStyles.length, computeFitCount, layoutExpanded]);
+  }, [allStyles.length, computeFitCount, hideUntilExpanded, layoutExpanded]);
 
   useEffect(() => {
     measureVisible();
   }, [measureVisible, activeStyleId]);
 
   useEffect(() => {
-    if (layoutExpanded) return;
+    if (hideUntilExpanded || layoutExpanded) return;
     const wrap = wrapRef.current;
     if (!wrap) return;
 
     const observer = new ResizeObserver(() => measureVisible());
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [layoutExpanded, measureVisible]);
+  }, [hideUntilExpanded, layoutExpanded, measureVisible]);
 
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
@@ -101,7 +119,11 @@ export function StylePresetChips({
       collapseTweenRef.current?.kill();
       collapseTweenRef.current = null;
       isCollapsingRef.current = false;
-      gsap.set(wrap, { clearProps: "height,overflow" });
+      if (hideUntilExpanded) {
+        gsap.set(wrap, { height: 0, overflow: "hidden" });
+      } else {
+        gsap.set(wrap, { clearProps: "height,overflow" });
+      }
       setLayoutExpanded(true);
       return;
     }
@@ -110,9 +132,13 @@ export function StylePresetChips({
       isCollapsingRef.current = true;
       gsap.set(wrap, { height: wrap.offsetHeight, overflow: "hidden" });
     }
-  }, [expanded, layoutExpanded]);
+  }, [expanded, hideUntilExpanded, layoutExpanded]);
 
   const displayStyles = useMemo(() => {
+    if (hideUntilExpanded) {
+      return showAllChips ? allStyles : [];
+    }
+
     if (showAllChips) return allStyles;
 
     let slice = allStyles.slice(0, visibleCount);
@@ -123,7 +149,7 @@ export function StylePresetChips({
       }
     }
     return slice;
-  }, [activeStyleId, allStyles, showAllChips, visibleCount]);
+  }, [activeStyleId, allStyles, hideUntilExpanded, showAllChips, visibleCount]);
 
   const hiddenCount = layoutExpanded ? 0 : Math.max(0, allStyles.length - displayStyles.length);
 
@@ -134,6 +160,8 @@ export function StylePresetChips({
   }, [displayStyles, layoutExpanded]);
 
   const getCollapsedWrapHeight = useCallback(() => {
+    if (hideUntilExpanded) return 0;
+
     const wrap = wrapRef.current;
     const measure = measureRef.current;
     if (!wrap || !measure) return wrap?.offsetHeight ?? 0;
@@ -152,13 +180,13 @@ export function StylePresetChips({
     const labelBlock = showHiddenCount && hidden > 0 ? 8 + 18 : 0;
 
     return firstRowBottom + labelBlock;
-  }, [allStyles.length, computeFitCount, showHiddenCount]);
+  }, [allStyles.length, computeFitCount, hideUntilExpanded, showHiddenCount]);
 
-  const isCollapsing = !expanded && layoutExpanded;
   const collapsedLabelCount = isCollapsing
     ? Math.max(0, allStyles.length - computeFitCount())
     : hiddenCount;
-  const showCollapsedLabel = showHiddenCount && (!layoutExpanded || isCollapsing) && collapsedLabelCount > 0;
+  const showCollapsedLabel =
+    !hideUntilExpanded && showHiddenCount && (!layoutExpanded || isCollapsing) && collapsedLabelCount > 0;
 
   useEffect(() => {
     if (!showCollapsedLabel || !hiddenCountRef.current) return;
@@ -176,52 +204,43 @@ export function StylePresetChips({
 
       const finishCollapse = () => {
         const wrap = wrapRef.current;
+        if (wrap) {
+          gsap.set(wrap, { height: 0, overflow: "hidden" });
+        }
+        isCollapsingRef.current = false;
         setLayoutExpanded(false);
-
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (wrap) {
-              gsap.set(wrap, { height: wrap.scrollHeight });
-              requestAnimationFrame(() => {
-                gsap.set(wrap, { clearProps: "height,overflow" });
-              });
-            }
-
-            const label = hiddenCountRef.current;
-            if (label) {
-              gsap.set(label, { opacity: 1, clearProps: "opacity,transform" });
-            }
-
-            isCollapsingRef.current = false;
-          });
-        });
       };
 
       if (expanded && !wasExpanded) {
-        const previouslyVisible = lastCollapsedIdsRef.current;
         const chips = chipsRef.current.querySelectorAll<HTMLElement>(".style-preset-chip");
-        const toAnimate = Array.from(chips).filter(
-          (chip) => chip.dataset.styleId && !previouslyVisible.has(chip.dataset.styleId),
-        );
+        const previouslyVisible = lastCollapsedIdsRef.current;
+        const toAnimate = hideUntilExpanded
+          ? Array.from(chips)
+          : Array.from(chips).filter(
+              (chip) => chip.dataset.styleId && !previouslyVisible.has(chip.dataset.styleId),
+            );
 
         mm.add("(prefers-reduced-motion: reduce)", () => {
-          gsap.set(toAnimate, { opacity: 1, y: 0 });
+          gsap.set(toAnimate, { opacity: 1, y: 0, scale: 1 });
         });
 
         mm.add("(prefers-reduced-motion: no-preference)", () => {
           const wrap = wrapRef.current;
-          const startHeight = wrap?.offsetHeight ?? 0;
 
           if (wrap) {
-            gsap.set(wrap, { height: startHeight, overflow: "hidden" });
+            gsap.set(wrap, { height: hideUntilExpanded ? 0 : wrap.offsetHeight, overflow: "hidden" });
+          }
+
+          if (toAnimate.length > 0) {
+            gsap.set(toAnimate, { opacity: 0, y: hideUntilExpanded ? 12 : 18, scale: hideUntilExpanded ? 0.98 : 1 });
           }
 
           requestAnimationFrame(() => {
             if (wrap) {
               gsap.to(wrap, {
                 height: wrap.scrollHeight,
-                duration: 0.62,
-                ease: "power1.out",
+                duration: EXPAND_DURATION,
+                ease: EXPAND_EASE,
                 onComplete: () => {
                   gsap.set(wrap, { clearProps: "height,overflow" });
                 },
@@ -229,24 +248,68 @@ export function StylePresetChips({
             }
 
             if (toAnimate.length > 0) {
-              gsap.fromTo(
-                toAnimate,
-                { opacity: 0, y: 18 },
-                {
-                  opacity: 1,
-                  y: 0,
-                  duration: 0.52,
-                  stagger: 0.042,
-                  ease: "power1.out",
-                  clearProps: "transform",
-                },
-              );
+              gsap.to(toAnimate, {
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                duration: hideUntilExpanded ? 0.38 : 0.52,
+                stagger: hideUntilExpanded ? 0.028 : 0.042,
+                ease: EXPAND_EASE,
+                clearProps: "transform",
+              });
             }
           });
         });
       }
 
       if (!expanded && wasExpanded && layoutExpanded) {
+        const chips = chipsRef.current.querySelectorAll<HTMLElement>(".style-preset-chip");
+
+        if (hideUntilExpanded) {
+          mm.add("(prefers-reduced-motion: reduce)", finishCollapse);
+
+          mm.add("(prefers-reduced-motion: no-preference)", () => {
+            const wrap = wrapRef.current;
+            collapseTweenRef.current?.kill();
+
+            const tl = gsap.timeline({
+              onComplete: () => {
+                collapseTweenRef.current = null;
+                finishCollapse();
+              },
+            });
+
+            if (chips.length > 0) {
+              tl.to(
+                chips,
+                {
+                  opacity: 0,
+                  duration: COLLAPSE_DURATION * PROMPT_PANEL_COLLAPSE_FADE_RATIO,
+                  stagger: { each: 0.012, from: "end" },
+                  ease: "power1.in",
+                },
+                0,
+              );
+            }
+
+            if (wrap) {
+              tl.to(
+                wrap,
+                {
+                  height: 0,
+                  duration: COLLAPSE_DURATION,
+                  ease: COLLAPSE_EASE,
+                },
+                0,
+              );
+            }
+
+            collapseTweenRef.current = tl;
+          });
+
+          return () => mm.revert();
+        }
+
         const fitCount = computeFitCount();
         let keepStyles = allStyles.slice(0, fitCount);
         if (activeStyleId && !keepStyles.some((s) => s.id === activeStyleId)) {
@@ -257,7 +320,6 @@ export function StylePresetChips({
         }
         const keepIds = new Set(keepStyles.map((s) => s.id));
 
-        const chips = chipsRef.current.querySelectorAll<HTMLElement>(".style-preset-chip");
         const toAnimate = Array.from(chips).filter(
           (chip) => chip.dataset.styleId && !keepIds.has(chip.dataset.styleId),
         );
@@ -273,8 +335,8 @@ export function StylePresetChips({
             if (wrap) {
               gsap.to(wrap, {
                 height: targetHeight,
-                duration: COLLAPSE_HEIGHT_DURATION,
-                ease: COLLAPSE_HEIGHT_EASE,
+                duration: PEEK_COLLAPSE_DURATION,
+                ease: PEEK_COLLAPSE_EASE,
                 onComplete: finishCollapse,
               });
             } else {
@@ -315,8 +377,8 @@ export function StylePresetChips({
               wrap,
               {
                 height: targetHeight,
-                duration: COLLAPSE_HEIGHT_DURATION,
-                ease: COLLAPSE_HEIGHT_EASE,
+                duration: PEEK_COLLAPSE_DURATION,
+                ease: PEEK_COLLAPSE_EASE,
               },
               0,
             );
@@ -326,7 +388,7 @@ export function StylePresetChips({
             toAnimate,
             {
               opacity: 0,
-              duration: COLLAPSE_HEIGHT_DURATION * 0.72,
+              duration: PEEK_COLLAPSE_DURATION * 0.72,
               ease: "power1.in",
             },
             0,
@@ -338,7 +400,7 @@ export function StylePresetChips({
               label,
               { opacity: 0 },
               { opacity: 1, duration: 0.22, ease: "power1.out" },
-              COLLAPSE_HEIGHT_DURATION * 0.55,
+              PEEK_COLLAPSE_DURATION * 0.55,
             );
           }
 
@@ -348,35 +410,51 @@ export function StylePresetChips({
 
       return () => mm.revert();
     },
-    { scope: chipsRef, dependencies: [activeStyleId, allStyles, computeFitCount, expanded, getCollapsedWrapHeight], revertOnUpdate: true },
+    {
+      scope: chipsRef,
+      dependencies: [activeStyleId, allStyles, computeFitCount, expanded, getCollapsedWrapHeight, hideUntilExpanded],
+    },
   );
 
   return (
     <div
       ref={wrapRef}
-      className={`style-preset-chips-wrap${!layoutExpanded ? " style-preset-chips-wrap--collapsed" : ""}${isCollapsing ? " style-preset-chips-wrap--collapsing" : ""}`}
+      className={`style-preset-chips-wrap${hideUntilExpanded ? " style-preset-chips-wrap--hidden-mode" : ""}${!layoutExpanded ? " style-preset-chips-wrap--collapsed" : ""}${isCollapsing ? " style-preset-chips-wrap--collapsing" : ""}`}
     >
-      <div className="style-preset-chips-row">
-        <div ref={measureRef} className="style-preset-chips-measure" aria-hidden>
-          {allStyles.map((style) => (
-            <StyleChip
-              key={`measure-${style.id}`}
-              style={style}
-              active={false}
-              onToggle={() => {}}
-              measureOnly
-              onReady={measureVisible}
-            />
-          ))}
-        </div>
+      {!hideUntilExpanded && (
+        <div className="style-preset-chips-row">
+          <div ref={measureRef} className="style-preset-chips-measure" aria-hidden>
+            {allStyles.map((style) => (
+              <StyleChip
+                key={`measure-${style.id}`}
+                style={style}
+                active={false}
+                onToggle={() => {}}
+                measureOnly
+                onReady={measureVisible}
+              />
+            ))}
+          </div>
 
-        <div ref={chipsRef} className="style-preset-chips">
-          {displayStyles.map((style) => {
-            const active = activeStyleId === style.id;
-            return <StyleChip key={style.id} style={style} active={active} onToggle={onToggle} />;
-          })}
+          <div ref={chipsRef} className="style-preset-chips">
+            {displayStyles.map((style) => {
+              const active = activeStyleId === style.id;
+              return <StyleChip key={style.id} style={style} active={active} onToggle={onToggle} />;
+            })}
+          </div>
         </div>
-      </div>
+      )}
+
+      {hideUntilExpanded && (
+        <div className="style-preset-chips-row">
+          <div ref={chipsRef} className="style-preset-chips">
+            {displayStyles.map((style) => {
+              const active = activeStyleId === style.id;
+              return <StyleChip key={style.id} style={style} active={active} onToggle={onToggle} />;
+            })}
+          </div>
+        </div>
+      )}
 
       {showCollapsedLabel && (
         <span ref={hiddenCountRef} className="style-preset-chips-hidden-count">

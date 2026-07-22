@@ -76,7 +76,7 @@ export function ExplorePostActionsMenu({
           )}
           {onAnimate && (
             <button type="button" role="menuitem" disabled={animateDisabled} onClick={() => run(onAnimate)}>
-              Animate image
+              Generate video
             </button>
           )}
           <button type="button" role="menuitem" onClick={() => run(onDownload)}>

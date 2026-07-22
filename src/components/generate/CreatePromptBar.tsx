@@ -2,7 +2,7 @@
 
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GenerationSettingsFields } from "@/components/generate/GenerationSettingsFields";
 import { StylePresetChips } from "@/components/generate/StylePresetChips";
 import { ALL_STYLES } from "@/lib/constants/generationStyles";
@@ -11,6 +11,13 @@ import { promptBoxDialStyles } from "@/lib/dials/promptBoxDialStyles";
 import { usePromptBoxDials } from "@/lib/dials/usePromptBoxDials";
 import { useGenerationStore } from "@/lib/store/generationStore";
 import { useAuthStore } from "@/lib/store/authStore";
+import {
+  PROMPT_PANEL_COLLAPSE_DURATION,
+  PROMPT_PANEL_COLLAPSE_EASE,
+  PROMPT_PANEL_COLLAPSE_FADE_RATIO,
+  PROMPT_PANEL_EXPAND_DURATION,
+  PROMPT_PANEL_EXPAND_EASE,
+} from "@/lib/generation/promptPanelMotion";
 
 gsap.registerPlugin(useGSAP);
 
@@ -51,9 +58,21 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
       .catch(() => setReferenceImg2img(false));
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (showSettings) setSettingsRendered(true);
   }, [showSettings]);
+
+  useLayoutEffect(() => {
+    const el = settingsRef.current;
+    if (!el || !settingsRendered) return;
+
+    if (showSettings) {
+      gsap.set(el, { height: 0, overflow: "hidden", opacity: 0, y: 12 });
+      return;
+    }
+
+    gsap.set(el, { height: el.offsetHeight, overflow: "hidden" });
+  }, [showSettings, settingsRendered]);
 
   useGSAP(
     () => {
@@ -62,37 +81,62 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
 
       const mm = gsap.matchMedia();
 
+      const finishCollapse = () => {
+        setSettingsRendered(false);
+      };
+
       if (showSettings) {
         mm.add("(prefers-reduced-motion: reduce)", () => {
-          gsap.set(el, { opacity: 1, y: 0 });
+          gsap.set(el, { opacity: 1, y: 0, height: "auto", clearProps: "overflow" });
         });
 
         mm.add("(prefers-reduced-motion: no-preference)", () => {
-          gsap.fromTo(
-            el,
-            { opacity: 0, y: 16 },
-            { opacity: 1, y: 0, duration: 0.58, ease: "power1.out" },
-          );
+          requestAnimationFrame(() => {
+            gsap.to(el, {
+              height: el.scrollHeight,
+              opacity: 1,
+              y: 0,
+              duration: PROMPT_PANEL_EXPAND_DURATION,
+              ease: PROMPT_PANEL_EXPAND_EASE,
+              onComplete: () => {
+                gsap.set(el, { clearProps: "height,overflow" });
+              },
+            });
+          });
         });
       } else {
-        mm.add("(prefers-reduced-motion: reduce)", () => {
-          setSettingsRendered(false);
-        });
+        mm.add("(prefers-reduced-motion: reduce)", finishCollapse);
 
         mm.add("(prefers-reduced-motion: no-preference)", () => {
-          gsap.to(el, {
-            opacity: 0,
-            y: -6,
-            duration: 0.58,
-            ease: "power1.inOut",
-            onComplete: () => setSettingsRendered(false),
-          });
+          const tl = gsap.timeline({ onComplete: finishCollapse });
+
+          tl.to(
+            el,
+            {
+              opacity: 0,
+              duration: PROMPT_PANEL_COLLAPSE_DURATION * PROMPT_PANEL_COLLAPSE_FADE_RATIO,
+              ease: "power1.in",
+            },
+            0,
+          );
+
+          tl.to(
+            el,
+            {
+              height: 0,
+              paddingTop: 0,
+              paddingBottom: 0,
+              duration: PROMPT_PANEL_COLLAPSE_DURATION,
+              ease: PROMPT_PANEL_COLLAPSE_EASE,
+            },
+            0,
+          );
         });
       }
 
       return () => mm.revert();
     },
-    { scope: shellRef, dependencies: [showSettings, settingsRendered], revertOnUpdate: true },
+    { scope: shellRef, dependencies: [showSettings, settingsRendered] },
   );
 
   const { isDragging, dragHandlers, handleFileInput } = useImageDrop(setReferenceImage);
@@ -184,7 +228,7 @@ export function CreatePromptBar({ sticky = true, showHint = true, wide = false, 
                 onToggle={toggleStyle}
                 styles={ALL_STYLES}
                 expanded={showSettings}
-                showHiddenCount
+                collapseBehavior="hidden"
               />
             </div>
 

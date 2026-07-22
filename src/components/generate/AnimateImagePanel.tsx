@@ -51,7 +51,7 @@ export function AnimateImagePanel({
   return (
     <div className={`animate-image-panel${compact ? " animate-image-panel--compact" : ""}`}>
       <div>
-        <p className="animate-image-panel-title">Animate image</p>
+        <p className="animate-image-panel-title">Generate video</p>
         <p className="animate-image-panel-hint">{hint}</p>
       </div>
 

@@ -72,7 +72,7 @@ export function EditorActionsMenu() {
         <div className="media-actions-dropdown media-actions-dropdown--right" role="menu">
           {videoEnabled && (
             <button type="button" role="menuitem" disabled={!imageUrl || isGenerating} onClick={animateImage}>
-              Animate image
+              Generate video
             </button>
           )}
           <button type="button" role="menuitem" disabled={!imageUrl} onClick={downloadImage}>

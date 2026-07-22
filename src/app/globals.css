@@ -1081,7 +1081,9 @@ input[type="range"]::-moz-range-thumb {
 .animate-image-modal-panel {
   width: min(var(--animate-modal-panel-max-width), 100%);
   max-height: calc(100vh - 48px);
-  overflow: visible;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border-radius: var(--animate-modal-panel-radius);
   border: 1px solid var(--animate-modal-panel-border);
   background: var(--animate-modal-panel-bg);
@@ -1094,6 +1096,7 @@ input[type="range"]::-moz-range-thumb {
   justify-content: space-between;
   padding: var(--animate-modal-header-py) var(--animate-modal-header-px);
   border-bottom: 1px solid var(--animate-modal-header-divider);
+  flex-shrink: 0;
 }
 .animate-image-modal-title {
   margin: 0;
@@ -1120,7 +1123,10 @@ input[type="range"]::-moz-range-thumb {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, var(--animate-modal-side-width));
   gap: 0;
-  overflow: visible;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 .animate-image-modal-preview {
   padding: var(--animate-modal-preview-padding);
@@ -1561,6 +1567,16 @@ input[type="range"]::-moz-range-thumb {
   min-width: 0;
   width: 100%;
 }
+.style-preset-chips-wrap--hidden-mode.style-preset-chips-wrap--collapsed {
+  height: 0;
+  overflow: hidden;
+  gap: 0;
+  pointer-events: none;
+}
+.style-preset-chips-wrap--hidden-mode.style-preset-chips-wrap--collapsing {
+  will-change: height;
+  overflow: hidden;
+}
 .style-preset-chips-row {
   position: relative;
   width: 100%;
@@ -1874,6 +1890,19 @@ input[type="range"]::-moz-range-thumb {
   font-size: 28px;
   cursor: pointer;
   grid-column: 1;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+.create-prompt-ref-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-muted);
+  color: var(--color-text-primary);
+}
+.create-prompt-ref-btn:active {
+  transform: scale(0.97);
 }
 .create-prompt-icon-btn {
   width: 36px;
@@ -2748,6 +2777,10 @@ input[type="range"]::-moz-range-thumb {
   background: transparent;
   color: var(--color-text-muted);
 }
+.create-prompt-shell--flat .create-prompt-ref-btn:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
 .create-prompt-shell--flat .create-prompt-ref-img {
   border: none;
 }
@@ -2755,6 +2788,11 @@ input[type="range"]::-moz-range-thumb {
   border-top: none;
   padding: 0;
   margin-top: 0;
+}
+.create-prompt-styles--flat:has(.style-preset-chips-wrap--collapsed),
+.create-prompt-styles--flat:has(.style-preset-chips-wrap--collapsing) {
+  padding: 0;
+  margin: 0;
 }
 .explore-tile-video-badge {
   position: absolute;
@@ -3898,6 +3936,7 @@ html.theme-transitioning *::after {
 }
 .editor-imagine-settings-dropdown.is-gsap-animated {
   animation: none;
+  will-change: height, opacity, transform;
 }
 .editor-imagine-settings-dropdown::-webkit-scrollbar {
   display: none;

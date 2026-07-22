@@ -121,7 +121,7 @@ function AnimationSlot({
   const style = getStyleById(animation.styleId ?? null);
 
   return (
-    <div style={{ marginTop: 4 }}>
+    <div data-generation-animation={animation.id} style={{ marginTop: 4 }}>
       <div
         style={{
           fontSize: 10,
@@ -135,7 +135,7 @@ function AnimationSlot({
       >
         <span>▶ {animation.settings.aspectRatio} · {animation.settings.videoDuration}s</span>
         {animation.status === "generating" && (
-          <span style={{ color: "var(--color-accent)" }}>Animating…</span>
+          <span style={{ color: "var(--color-accent)" }}>Generating video…</span>
         )}
         {animation.status === "failed" && (
           <span style={{ color: "#e74c3c" }}>{animation.error ?? "Failed"}</span>
@@ -299,7 +299,7 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
   const animatingCount = (job.animations ?? []).filter((a) => a.status === "generating").length;
 
   return (
-    <article style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-border-subtle)" }}>
+    <article data-generation-job={job.id} style={{ padding: "20px 24px", borderBottom: "1px solid var(--color-border-subtle)" }}>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <div style={{ marginBottom: 12 }}>
           <p style={{ fontSize: 14, color: "var(--color-text-primary)", margin: "0 0 4px", lineHeight: 1.4 }}>
@@ -334,11 +334,7 @@ export function GenerationJobCard({ job }: { job: GenerationJob }) {
             </span>
             {job.status === "generating" && (
               <span style={{ fontSize: 11, color: "var(--color-accent)" }}>
-                {isVideo
-                  ? job.action === "animate"
-                    ? "Animating image…"
-                    : "Generating video…"
-                  : `${job.progress}%`}
+                {isVideo ? "Generating video…" : `${job.progress}%`}
               </span>
             )}
             {job.status === "failed" && (
