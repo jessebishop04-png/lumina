@@ -424,7 +424,10 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 320px;
+  min-width: 0;
+  min-height: 0;
+  max-height: calc(100vh - 48px);
+  overflow: hidden;
 }
 .explore-modal-image {
   max-width: 100%;
@@ -876,19 +879,22 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   background: var(--color-surface-panel);
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--color-border-subtle);
   box-shadow:
     0 24px 48px rgba(15, 23, 42, 0.16),
     0 8px 20px rgba(15, 23, 42, 0.08);
 }
 .gen-lightbox-header {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   padding: 16px 20px;
   border-bottom: 1px solid var(--color-border-subtle);
+  border-radius: 16px 16px 0 0;
   flex-shrink: 0;
 }
 .gen-lightbox-prompt {
@@ -934,7 +940,9 @@ input[type="range"]::-moz-range-thumb {
   justify-content: center;
   min-height: 0;
   padding: 24px;
+  overflow-x: hidden;
   overflow-y: auto;
+  border-radius: 0 0 16px 16px;
   background: var(--color-canvas);
 }
 .gen-lightbox-media {
@@ -2644,12 +2652,6 @@ input[type="range"]::-moz-range-thumb {
   align-items: center;
   justify-content: center;
   pointer-events: none;
-}
-.explore-modal-video {
-  max-height: 100%;
-  width: auto;
-  max-width: 100%;
-  object-fit: contain;
 }
 .explore-filter-bar--flat {
   display: flex;

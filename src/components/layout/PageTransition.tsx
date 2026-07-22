@@ -10,18 +10,11 @@ import {
   useState,
 } from "react";
 
-const EXIT = {
-  opacity: 0,
-  y: 6,
-  duration: 0.14,
-  ease: "power2.in",
-} as const;
-
-const ENTER_FROM = { opacity: 0, y: -4 };
+const ENTER_FROM = { opacity: 0, y: -3 };
 const ENTER_TO = {
   opacity: 1,
   y: 0,
-  duration: 0.22,
+  duration: 0.15,
   ease: "power2.out",
 } as const;
 
@@ -35,7 +28,6 @@ export function PageTransition({ children, className }: PageTransitionProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const activeTweenRef = useRef<gsap.core.Tween | null>(null);
   const displayedPathRef = useRef(pathname);
-  const isAnimatingRef = useRef(false);
   const isFirstMountRef = useRef(true);
   const pendingChildrenRef = useRef(children);
   const [renderedChildren, setRenderedChildren] = useState(children);
@@ -43,7 +35,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
   pendingChildrenRef.current = children;
 
   useEffect(() => {
-    if (pathname === displayedPathRef.current && !isAnimatingRef.current) {
+    if (pathname === displayedPathRef.current) {
       setRenderedChildren(children);
     }
   }, [children, pathname]);
@@ -82,50 +74,16 @@ export function PageTransition({ children, className }: PageTransitionProps) {
     if (pathname === displayedPathRef.current) return;
 
     killActive();
-
-    const commitSwap = () => {
-      setRenderedChildren(pendingChildrenRef.current);
-      displayedPathRef.current = pathname;
-    };
-
-    const finish = () => {
-      isAnimatingRef.current = false;
-      activeTweenRef.current = null;
-    };
-
-    const runEnter = () => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (!contentRef.current) {
-            finish();
-            return;
-          }
-
-          activeTweenRef.current = gsap.fromTo(contentRef.current, ENTER_FROM, {
-            ...ENTER_TO,
-            onComplete: finish,
-          });
-        });
-      });
-    };
+    setRenderedChildren(pendingChildrenRef.current);
+    displayedPathRef.current = pathname;
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reducedMotion) {
-      commitSwap();
       setVisible();
-      finish();
       return killActive;
     }
 
-    isAnimatingRef.current = true;
-
-    activeTweenRef.current = gsap.to(el, {
-      ...EXIT,
-      onComplete: () => {
-        commitSwap();
-        runEnter();
-      },
-    });
+    activeTweenRef.current = gsap.fromTo(el, ENTER_FROM, ENTER_TO);
 
     return killActive;
   }, [pathname]);

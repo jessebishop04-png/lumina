@@ -128,18 +128,22 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   postComments: [],
 
   loadExplore: async () => {
-    set({ isLoading: true });
+    const hasCachedPosts = get().allPosts.length > 0;
+    if (!hasCachedPosts) set({ isLoading: true });
+
     try {
       const posts = await ensureCatalogPosts();
       const enriched = enrichPosts(posts);
       set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
     } catch (err) {
       console.error("Failed to load explore:", err);
-      const catalog = buildCatalogExplorePosts();
-      const enriched = enrichPosts(catalog);
-      set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
+      if (!hasCachedPosts) {
+        const catalog = buildCatalogExplorePosts();
+        const enriched = enrichPosts(catalog);
+        set({ allPosts: enriched, posts: applyExploreFilters(enriched, get().filterTab, get().mediaFilter) });
+      }
     } finally {
-      set({ isLoading: false });
+      if (!hasCachedPosts) set({ isLoading: false });
     }
 
     void get()

@@ -279,6 +279,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   animateTarget: null,
 
   loadJobs: async () => {
+    if (get().jobs.length > 0) return;
     const jobs = await getGenerationJobs();
     set({ jobs });
   },

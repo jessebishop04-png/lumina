@@ -540,7 +540,7 @@ export function GenerationLightbox() {
             <div className="gen-lightbox-header-actions">
               <MediaActionsMenu
                 overlay={false}
-                align="left"
+                align="right"
                 onGenerateVideo={
                   !isVideo && sourceImage
                     ? () =>
